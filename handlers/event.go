@@ -5,6 +5,7 @@ import (
     "github.com/gofiber/fiber/v2"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
+    "github.com/Tsaniii18/Ticketing-Backend/utils"
 )
 
 func CreateEvent(c *fiber.Ctx) error {
@@ -28,6 +29,7 @@ func CreateEvent(c *fiber.Ctx) error {
     }
     
     event := models.Event{
+        EventID:     utils.GenerateEventID(),
         Name:        eventData.Name,
         OwnerID:     user.UserID,
         Status:      "pending",
@@ -38,6 +40,8 @@ func CreateEvent(c *fiber.Ctx) error {
         Image:       eventData.Image,
         Flyer:       eventData.Flyer,
         Category:    eventData.Category,
+        CreatedAt:   time.Now(),
+        UpdatedAt:   time.Now(),
     }
     
     if err := config.DB.Create(&event).Error; err != nil {

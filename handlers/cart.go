@@ -1,17 +1,19 @@
 package handlers
 
 import (
+	"time"
     "github.com/gofiber/fiber/v2"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
+    "github.com/Tsaniii18/Ticketing-Backend/utils"
 )
 
 func AddToCart(c *fiber.Ctx) error {
     user := c.Locals("user").(models.User)
     
     var cartData struct {
-        TicketCategoryID uint `json:"ticket_category_id"`
-        Quantity         uint `json:"quantity"`
+        TicketCategoryID string `json:"ticket_category_id"`
+        Quantity         uint   `json:"quantity"`
     }
     
     if err := c.BodyParser(&cartData); err != nil {
@@ -22,7 +24,7 @@ func AddToCart(c *fiber.Ctx) error {
     
     // Get ticket category
     var ticketCategory models.TicketCategory
-    if err := config.DB.First(&ticketCategory, cartData.TicketCategoryID).Error; err != nil {
+    if err := config.DB.First(&ticketCategory, "ticket_category_id = ?", cartData.TicketCategoryID).Error; err != nil {
         return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
             "error": "Ticket category not found",
         })
@@ -38,10 +40,13 @@ func AddToCart(c *fiber.Ctx) error {
     priceTotal := float64(cartData.Quantity) * ticketCategory.Price
     
     cart := models.Cart{
-        TicketCategoryID: cartData.TicketCategoryID,
+        CartID:           utils.GenerateCartID(), // Menggunakan UUID dengan prefix
+        TicketCategoryID: ticketCategory.TicketCategoryID,
         OwnerID:          user.UserID,
         Quantity:         cartData.Quantity,
         PriceTotal:       priceTotal,
+        CreatedAt:        time.Now(),
+        UpdatedAt:        time.Now(),
     }
     
     if err := config.DB.Create(&cart).Error; err != nil {

@@ -73,11 +73,6 @@ func migrateDatabase(db *gorm.DB) error {
     if err != nil {
         return err
     }
-    
-    err = db.AutoMigrate(&models.Report{})
-    if err != nil {
-        return err
-    }
 
     db.Exec("SET FOREIGN_KEY_CHECKS = 1")
     

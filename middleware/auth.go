@@ -3,7 +3,6 @@ package middleware
 import (
     "github.com/gofiber/fiber/v2"
     "github.com/golang-jwt/jwt/v4"
-    "github.com/google/uuid"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
 )
@@ -31,11 +30,20 @@ func AuthMiddleware(c *fiber.Ctx) error {
         })
     }
 
-    userIDStr := (*claims)["user_id"].(string)
-    userID, err := uuid.Parse(userIDStr)
-    if err != nil {
+    // Extract user_id from claims - handle both string and direct UUID
+    var userID string
+    if userIDClaim, exists := (*claims)["user_id"]; exists {
+        switch v := userIDClaim.(type) {
+        case string:
+            userID = v
+        default:
+            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+                "error": "Invalid user ID format in token",
+            })
+        }
+    } else {
         return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-            "error": "Invalid user ID in token",
+            "error": "User ID not found in token",
         })
     }
 

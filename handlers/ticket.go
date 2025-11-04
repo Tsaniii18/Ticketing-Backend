@@ -1,16 +1,18 @@
 package handlers
 
 import (
+	"time"
     "github.com/gofiber/fiber/v2"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
+    "github.com/Tsaniii18/Ticketing-Backend/utils"
 )
 
 func CreateTicketCategory(c *fiber.Ctx) error {
     user := c.Locals("user").(models.User)
     
     var ticketData struct {
-        EventID         uint    `json:"event_id"`
+        EventID         string  `json:"event_id"` // Changed to string for UUID
         Price           float64 `json:"price"`
         Quota           uint    `json:"quota"`
         Description     string  `json:"description"`
@@ -26,7 +28,7 @@ func CreateTicketCategory(c *fiber.Ctx) error {
     
     // Check if user owns the event
     var event models.Event
-    if err := config.DB.First(&event, ticketData.EventID).Error; err != nil {
+    if err := config.DB.First(&event, "event_id = ?", ticketData.EventID).Error; err != nil {
         return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
             "error": "Event not found",
         })
@@ -39,10 +41,13 @@ func CreateTicketCategory(c *fiber.Ctx) error {
     }
     
     ticketCategory := models.TicketCategory{
-        EventID:       ticketData.EventID,
-        Price:         ticketData.Price,
-        Quota:         ticketData.Quota,
-        Description:   ticketData.Description,
+        TicketCategoryID: utils.GenerateTicketCategoryID(),
+        EventID:          event.EventID,
+        Price:            ticketData.Price,
+        Quota:            ticketData.Quota,
+        Description:      ticketData.Description,
+        CreatedAt:        time.Now(),
+        UpdatedAt:        time.Now(),
     }
     
     if err := config.DB.Create(&ticketCategory).Error; err != nil {

@@ -4,7 +4,6 @@ import (
     "time"
     "github.com/gofiber/fiber/v2"
     "github.com/golang-jwt/jwt/v4"
-    "github.com/google/uuid"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
     "github.com/Tsaniii18/Ticketing-Backend/utils"
@@ -78,7 +77,7 @@ func Register(c *fiber.Ctx) error {
     }
 
     user := models.User{
-        UserID:                uuid.New(),
+        UserID:                utils.GenerateUserID(req.Role),
         Username:              req.Username,
         Name:                  req.Name,
         Email:                 req.Email,
@@ -141,7 +140,7 @@ func Login(c *fiber.Ctx) error {
         })
     }
 
-    // Generate JWT token
+    // Generate JWT token dengan claims yang benar
     token := jwt.New(jwt.SigningMethodHS256)
     claims := token.Claims.(jwt.MapClaims)
     claims["user_id"] = user.UserID

@@ -2,11 +2,11 @@ package handlers
 
 import (
     "time"
-
+	"gorm.io/gorm"
     "github.com/gofiber/fiber/v2"
-    "github.com/google/uuid"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
+    "github.com/Tsaniii18/Ticketing-Backend/utils"
 )
 
 func Checkout(c *fiber.Ctx) error {
@@ -34,9 +34,11 @@ func Checkout(c *fiber.Ctx) error {
 
     // Create transaction
     transaction := models.TransactionHistory{
+        TransactionID:   utils.GenerateTransactionID(),
         OwnerID:         user.UserID,
         TransactionTime: time.Now(),
         PriceTotal:      total,
+        CreatedAt:       time.Now(),
     }
 
     if err := config.DB.Create(&transaction).Error; err != nil {
@@ -49,11 +51,12 @@ func Checkout(c *fiber.Ctx) error {
     for _, cartItem := range cart {
         // Create transaction detail
         transactionDetail := models.TransactionDetail{
-            TicketCategoryID: cartItem.TicketCategoryID,
-            TransactionID:    transaction.TransactionID,
-            OwnerID:          user.UserID,
-            Quantity:         cartItem.Quantity,
-            Subtotal:         cartItem.PriceTotal,
+            TransactionDetailID: utils.GenerateTransactionDetailID(),
+            TicketCategoryID:    cartItem.TicketCategoryID,
+            TransactionID:       transaction.TransactionID,
+            OwnerID:             user.UserID,
+            Quantity:            cartItem.Quantity,
+            Subtotal:            cartItem.PriceTotal,
         }
 
         if err := config.DB.Create(&transactionDetail).Error; err != nil {
@@ -65,11 +68,14 @@ func Checkout(c *fiber.Ctx) error {
         // Create tickets
         for i := 0; i < int(cartItem.Quantity); i++ {
             ticket := models.Ticket{
+                TicketID:         utils.GenerateTicketID(),
                 EventID:          cartItem.TicketCategory.EventID,
                 TicketCategoryID: cartItem.TicketCategoryID,
                 OwnerID:          user.UserID,
                 Status:           "active",
-                Code:             generateTicketCode(),
+                Code:             utils.GenerateTicketCode(),
+                CreatedAt:        time.Now(),
+                UpdatedAt:        time.Now(),
             }
 
             if err := config.DB.Create(&ticket).Error; err != nil {
@@ -81,6 +87,10 @@ func Checkout(c *fiber.Ctx) error {
 
         // Update sold count
         config.DB.Model(&cartItem.TicketCategory).Update("sold", cartItem.TicketCategory.Sold+cartItem.Quantity)
+        
+        // Update event total sales
+        config.DB.Model(&models.Event{}).Where("event_id = ?", cartItem.TicketCategory.EventID).
+            Update("total_sales", gorm.Expr("total_sales + ?", cartItem.PriceTotal))
     }
 
     // Clear cart
@@ -125,6 +135,3 @@ func GetTransaction(c *fiber.Ctx) error {
     return c.JSON(transaction)
 }
 
-func generateTicketCode() string {
-    return "TICKET-" + uuid.New().String()
-}
