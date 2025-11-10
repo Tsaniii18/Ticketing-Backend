@@ -109,7 +109,9 @@ func GetEvent(c *fiber.Ctx) error {
     eventID := c.Params("id")
     
     var event models.Event
-    if err := config.DB.Preload("Owner").Preload("TicketCategories").First(&event, eventID).Error; err != nil {
+    if err := config.DB.Preload("Owner").Preload("TicketCategories").
+        Where("event_id = ?", eventID).
+        First(&event).Error; err != nil {
         return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
             "error": "Event not found",
         })
@@ -159,15 +161,15 @@ func VerifyEvent(c *fiber.Ctx) error {
     eventID := c.Params("id")
     
     var event models.Event
-    if err := config.DB.First(&event, eventID).Error; err != nil {
+    if err := config.DB.Where("event_id = ?", eventID).First(&event).Error; err != nil {
         return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
             "error": "Event not found",
         })
     }
     
     var req struct {
-        Status           string `json:"status"`
-        ApprovalComment  string `json:"approval_comment,omitempty"`
+        Status          string `json:"status"`
+        ApprovalComment string `json:"approval_comment,omitempty"`
     }
     
     if err := c.BodyParser(&req); err != nil {

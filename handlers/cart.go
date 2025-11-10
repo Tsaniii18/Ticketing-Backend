@@ -40,7 +40,7 @@ func AddToCart(c *fiber.Ctx) error {
     priceTotal := float64(cartData.Quantity) * ticketCategory.Price
     
     cart := models.Cart{
-        CartID:           utils.GenerateCartID(), // Menggunakan UUID dengan prefix
+        CartID:           utils.GenerateCartID(), 
         TicketCategoryID: ticketCategory.TicketCategoryID,
         OwnerID:          user.UserID,
         Quantity:         cartData.Quantity,
