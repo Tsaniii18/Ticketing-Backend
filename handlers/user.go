@@ -1,6 +1,8 @@
 package handlers
 
 import (
+    "context"
+    "fmt"
     "github.com/gofiber/fiber/v2"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
@@ -14,22 +16,39 @@ func GetProfile(c *fiber.Ctx) error {
 func UpdateProfile(c *fiber.Ctx) error {
     user := c.Locals("user").(models.User)
     
-    var updateData struct {
-        Name                    string `json:"name"`
-        Email                   string `json:"email"`
-        ProfilePict             string `json:"profile_pict"`
-        Organization            string `json:"organization"`
-        OrganizationType        string `json:"organization_type"`
-        OrganizationDescription string `json:"organization_description"`
-        KTP                     string `json:"ktp"`
+    name := c.FormValue("name")
+    email := c.FormValue("email")
+    organization := c.FormValue("organization")
+    organizationType := c.FormValue("organization_type")
+    organizationDescription := c.FormValue("organization_description")
+    ktp := c.FormValue("ktp")
+
+    updateData := map[string]interface{}{
+        "Name":                    name,
+        "Email":                   email,
+        "Organization":            organization,
+        "OrganizationType":        organizationType,
+        "OrganizationDescription": organizationDescription,
+        "KTP":                     ktp,
     }
-    
-    if err := c.BodyParser(&updateData); err != nil {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Invalid request",
-        })
+
+    // Handle profile picture upload
+    profilePictFile, err := c.FormFile("profile_pict")
+    if err == nil {
+        file, err := profilePictFile.Open()
+        if err == nil {
+            defer file.Close()
+            folder := fmt.Sprintf("ticketing-app/users/%s/profile", user.UserID)
+            profilePictURL, err := config.UploadImage(context.Background(), file, folder)
+            if err != nil {
+                return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                    "error": "Failed to upload profile picture",
+                })
+            }
+            updateData["ProfilePict"] = profilePictURL
+        }
     }
-    
+
     if err := config.DB.Model(&user).Updates(updateData).Error; err != nil {
         return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
             "error": "Failed to update profile",

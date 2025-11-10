@@ -1,7 +1,9 @@
 package handlers
 
 import (
+    "context"
     "time"
+    "fmt"
     "github.com/gofiber/fiber/v2"
     "github.com/Tsaniii18/Ticketing-Backend/config"
     "github.com/Tsaniii18/Ticketing-Backend/models"
@@ -11,35 +13,74 @@ import (
 func CreateEvent(c *fiber.Ctx) error {
     user := c.Locals("user").(models.User)
     
-    var eventData struct {
-        Name        string    `json:"name"`
-        DateStart   time.Time `json:"date_start"`
-        DateEnd     time.Time `json:"date_end"`
-        Location    string    `json:"location"`
-        Description string    `json:"description"`
-        Image       string    `json:"image"`
-        Flyer       string    `json:"flyer"`
-        Category    string    `json:"category"`
-    }
-    
-    if err := c.BodyParser(&eventData); err != nil {
+    // Parse form data
+    name := c.FormValue("name")
+    dateStartStr := c.FormValue("date_start")
+    dateEndStr := c.FormValue("date_end")
+    location := c.FormValue("location")
+    description := c.FormValue("description")
+    category := c.FormValue("category")
+
+    // Parse dates
+    dateStart, err := time.Parse(time.RFC3339, dateStartStr)
+    if err != nil {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Invalid request",
+            "error": "Invalid date_start format",
         })
     }
+
+    dateEnd, err := time.Parse(time.RFC3339, dateEndStr)
+    if err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "Invalid date_end format",
+        })
+    }
+
+    // Handle image upload
+    var imageURL, flyerURL string
     
+    imageFile, err := c.FormFile("image")
+    if err == nil {
+        file, err := imageFile.Open()
+        if err == nil {
+            defer file.Close()
+            folder := fmt.Sprintf("ticketing-app/events/%s/images", user.UserID)
+            imageURL, err = config.UploadImage(context.Background(), file, folder)
+            if err != nil {
+                return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                    "error": "Failed to upload event image",
+                })
+            }
+        }
+    }
+
+    flyerFile, err := c.FormFile("flyer")
+    if err == nil {
+        file, err := flyerFile.Open()
+        if err == nil {
+            defer file.Close()
+            folder := fmt.Sprintf("ticketing-app/events/%s/flyers", user.UserID)
+            flyerURL, err = config.UploadImage(context.Background(), file, folder)
+            if err != nil {
+                return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                    "error": "Failed to upload event flyer",
+                })
+            }
+        }
+    }
+
     event := models.Event{
         EventID:     utils.GenerateEventID(),
-        Name:        eventData.Name,
+        Name:        name,
         OwnerID:     user.UserID,
         Status:      "pending",
-        DateStart:   eventData.DateStart,
-        DateEnd:     eventData.DateEnd,
-        Location:    eventData.Location,
-        Description: eventData.Description,
-        Image:       eventData.Image,
-        Flyer:       eventData.Flyer,
-        Category:    eventData.Category,
+        DateStart:   dateStart,
+        DateEnd:     dateEnd,
+        Location:    location,
+        Description: description,
+        Image:       imageURL,
+        Flyer:       flyerURL,
+        Category:    category,
         CreatedAt:   time.Now(),
         UpdatedAt:   time.Now(),
     }

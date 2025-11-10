@@ -14,6 +14,9 @@ import (
 func main() {
     // Connect to database
     config.ConnectDatabase()
+    
+    // Initialize Cloudinary
+    config.InitCloudinary()
 
     err := migrateDatabase(config.DB)
     if err != nil {

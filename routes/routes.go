@@ -12,17 +12,22 @@ func SetupRoutes(app *fiber.App) {
 	auth.Post("/register", handlers.Register)
 	auth.Post("/login", handlers.Login)
 
+	// Upload routes
+	upload := app.Group("/api/upload", middleware.AuthMiddleware)
+	upload.Post("/image", handlers.UploadImage)
+	upload.Post("/images", handlers.UploadMultipleImages)
+
 	// User routes
 	user := app.Group("/api/users", middleware.AuthMiddleware)
 	user.Get("/profile", handlers.GetProfile)
-	user.Put("/profile", handlers.UpdateProfile)
+	user.Put("/profile", handlers.UpdateProfile) 
 	user.Get("/", middleware.AdminMiddleware, handlers.GetUsers)
 	user.Post("/:id/verify", middleware.AdminMiddleware, handlers.VerifyUser)
 
 	// Event routes
 	app.Get("/api/events", handlers.GetEvents)
 	event := app.Group("/api/events", middleware.AuthMiddleware)
-	event.Post("/", handlers.CreateEvent)
+	event.Post("/", handlers.CreateEvent) 
 	event.Get("/:id", handlers.GetEvent)
 	event.Put("/:id", handlers.UpdateEvent)
 	event.Patch("/:id/verify", middleware.AdminMiddleware, handlers.VerifyEvent)
