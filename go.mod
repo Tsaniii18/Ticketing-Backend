@@ -3,10 +3,12 @@ module github.com/Tsaniii18/Ticketing-Backend
 go 1.22.2
 
 require (
+	github.com/cloudinary/cloudinary-go/v2 v2.13.0
 	github.com/gofiber/fiber/v2 v2.52.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/uuid v1.5.0
 	github.com/joho/godotenv v1.5.1
+	github.com/midtrans/midtrans-go v1.3.8
 	golang.org/x/crypto v0.14.0
 	gorm.io/driver/mysql v1.5.2
 	gorm.io/gorm v1.25.5
@@ -14,7 +16,6 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
-	github.com/cloudinary/cloudinary-go/v2 v2.13.0 // indirect
 	github.com/creasty/defaults v1.7.0 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/gorilla/schema v1.4.1 // indirect
