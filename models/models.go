@@ -84,7 +84,6 @@ type Ticket struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 
 	// Relationships
-	TicketCategory TicketCategory `gorm:"foreignKey:TicketCategoryID" json:"ticket_category"`
 	Owner          User           `gorm:"foreignKey:OwnerID" json:"owner"`
 }
 
@@ -98,7 +97,6 @@ type Cart struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 
 	// Relationships
-	TicketCategory TicketCategory `gorm:"foreignKey:TicketCategoryID" json:"ticket_category"`
 	Owner          User           `gorm:"foreignKey:OwnerID" json:"owner"`
 }
 
@@ -124,7 +122,6 @@ type TransactionDetail struct {
 	Subtotal            float64 `gorm:"type:decimal(10,2)" json:"subtotal"`
 
 	// Relationships
-	TicketCategory     TicketCategory     `gorm:"foreignKey:TicketCategoryID" json:"ticket_category"`
 	TransactionHistory TransactionHistory `gorm:"foreignKey:TransactionID" json:"transaction_history"`
 	Owner              User               `gorm:"foreignKey:OwnerID" json:"owner"`
 }
