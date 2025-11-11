@@ -79,9 +79,9 @@ func PaymentMidtrans(c *fiber.Ctx) error {
 				TicketCategoryID: cartItem.TicketCategoryID,
 				OwnerID:          user.UserID,
 				Status:           "pending", // Set status to pending until payment is confirmed
-				Code:             utils.GenerateTicketCode(),
-				CreatedAt:        time.Now(),
-				UpdatedAt:        time.Now(),
+				// Code:             utils.GenerateTicketCode(),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
 			}
 
 			if err := config.DB.Create(&ticket).Error; err != nil {
@@ -184,6 +184,7 @@ func PaymentNotificationHandler(c *fiber.Ctx) error {
 
 			for _, ticket := range tickets {
 				ticket.Status = "active"
+				ticket.Code = utils.GenerateTicketCode()
 				if err := config.DB.Save(&ticket).Error; err != nil {
 					return c.Status(500).JSON(fiber.Map{"error": "Failed to update ticket status"})
 				}
@@ -194,10 +195,57 @@ func PaymentNotificationHandler(c *fiber.Ctx) error {
 				Update("total_sales", gorm.Expr("total_sales + ?", detail.Subtotal))
 		}
 
-	case "pending":
-		// menunggu pembayaran
 	case "deny", "cancel":
 		// pembayaran gagal
+		if err := config.DB.Model(&models.TransactionHistory{}).Where("transaction_id = ?", orderID).Update("transaction_status", "failed").Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to update transaction status - status cancel/deny"})
+		}
+
+		var transactionDetails []models.TransactionDetail
+		if err := config.DB.Where("transaction_id = ?", orderID).Find(&transactionDetails).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch transaction details"})
+		}
+
+		for _, detail := range transactionDetails {
+			var tickets []models.Ticket
+			if err := config.DB.Where("ticket_category_id = ? AND owner_id = ? AND status = ?", detail.TicketCategoryID, detail.OwnerID, "pending").Limit(int(detail.Quantity)).Find(&tickets).Error; err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch tickets"})
+			}
+
+			for _, ticket := range tickets {
+				ticket.Status = "payment_failed"
+				if err := config.DB.Save(&ticket).Error; err != nil {
+					return c.Status(500).JSON(fiber.Map{"error": "Failed to update ticket status"})
+				}
+			}
+		}
+
+	case "expire":
+		// pembayaran kadaluarsa
+		if err := config.DB.Model(&models.TransactionHistory{}).Where("transaction_id = ?", orderID).Update("transaction_status", "expired").Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to update transaction status - status expire"})
+		}
+
+		var transactionDetails []models.TransactionDetail
+		if err := config.DB.Where("transaction_id = ?", orderID).Find(&transactionDetails).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch transaction details"})
+		}
+
+		for _, detail := range transactionDetails {
+			var tickets []models.Ticket
+			if err := config.DB.Where("ticket_category_id = ? AND owner_id = ? AND status = ?", detail.TicketCategoryID, detail.OwnerID, "pending").Limit(int(detail.Quantity)).Find(&tickets).Error; err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch tickets"})
+			}
+
+			for _, ticket := range tickets {
+				ticket.Status = "payment_failed"
+				if err := config.DB.Save(&ticket).Error; err != nil {
+					return c.Status(500).JSON(fiber.Map{"error": "Failed to update ticket status"})
+				}
+			}
+		}
+	default:
+		return c.Status(400).JSON(fiber.Map{"error": "Unknown transaction status"})
 	}
 
 	return c.JSON(fiber.Map{
