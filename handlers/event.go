@@ -16,6 +16,7 @@ type CreateEventRequest struct {
     DateStart        string                   `json:"date_start"`
     DateEnd          string                   `json:"date_end"`
     Location         string                   `json:"location"`
+    City             string                   `json:"city"`
     Description      string                   `json:"description"`
     Category         string                   `json:"category"`
     TicketCategories []TicketCategoryRequest `json:"ticket_categories"`
@@ -32,24 +33,18 @@ type TicketCategoryRequest struct {
 
 func CreateEvent(c *fiber.Ctx) error {
     user := c.Locals("user").(models.User)
-    
-    // Parse form data
     name := c.FormValue("name")
     dateStartStr := c.FormValue("date_start")
     dateEndStr := c.FormValue("date_end")
     location := c.FormValue("location")
+    city := c.FormValue("city")
     description := c.FormValue("description")
     category := c.FormValue("category")
     ticketCategoriesJSON := c.FormValue("ticket_categories")
 
-    // Debug: Print received data
-    fmt.Printf("Received ticket_categories: %s\n", ticketCategoriesJSON)
-
     var ticketCategories []TicketCategoryRequest
     if ticketCategoriesJSON != "" {
-        // Parse JSON string ke struct
         if err := json.Unmarshal([]byte(ticketCategoriesJSON), &ticketCategories); err != nil {
-            fmt.Printf("JSON parse error: %v\n", err)
             return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
                 "error": "Invalid ticket categories JSON format: " + err.Error(),
             })
@@ -57,9 +52,9 @@ func CreateEvent(c *fiber.Ctx) error {
     }
 
     // Validasi required fields
-    if name == "" || dateStartStr == "" || dateEndStr == "" || location == "" {
+    if name == "" || dateStartStr == "" || dateEndStr == "" || location == "" || city == "" {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Missing required fields: name, date_start, date_end, location",
+            "error": "Missing required fields: name, date_start, date_end, location, city",
         })
     }
 
@@ -78,7 +73,7 @@ func CreateEvent(c *fiber.Ctx) error {
         })
     }
 
-    // Handle image upload
+    // Handle image upload (sama seperti sebelumnya)
     var imageURL, flyerURL string
     
     imageFile, err := c.FormFile("image")
@@ -128,6 +123,7 @@ func CreateEvent(c *fiber.Ctx) error {
         DateStart:   dateStart,
         DateEnd:     dateEnd,
         Location:    location,
+        City:        city,
         Description: description,
         Image:       imageURL,
         Flyer:       flyerURL,
@@ -147,7 +143,6 @@ func CreateEvent(c *fiber.Ctx) error {
     var createdTicketCategories []models.TicketCategory
     if len(ticketCategories) > 0 {
         for _, tcReq := range ticketCategories {
-            // Parse ticket category dates
             dateTimeStart, err := time.Parse(time.RFC3339, tcReq.DateTimeStart)
             if err != nil {
                 tx.Rollback()
@@ -196,12 +191,19 @@ func CreateEvent(c *fiber.Ctx) error {
         })
     }
 
-    // Manual preload untuk response (hindari query ulang)
-    event.TicketCategories = createdTicketCategories
-    
+    // **PERBAIKAN: Preload owner data dengan query yang benar**
+    var eventWithOwner models.Event
+    if err := config.DB.Preload("Owner").Preload("TicketCategories").
+        Where("event_id = ?", event.EventID).
+        First(&eventWithOwner).Error; err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to load event data: " + err.Error(),
+        })
+    }
+
     return c.Status(fiber.StatusCreated).JSON(fiber.Map{
         "message": "Event created successfully",
-        "event": event,
+        "event": eventWithOwner,
     })
 }
 
@@ -242,6 +244,49 @@ func GetEvent(c *fiber.Ctx) error {
     return c.JSON(event)
 }
 
+func VerifyEvent(c *fiber.Ctx) error {
+    eventID := c.Params("id")
+    
+    var event models.Event
+    if err := config.DB.Preload("Owner").Where("event_id = ?", eventID).First(&event).Error; err != nil {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+            "error": "Event not found",
+        })
+    }
+    
+    var req struct {
+        Status          string `json:"status"`
+        ApprovalComment string `json:"approval_comment,omitempty"`
+    }
+    
+    if err := c.BodyParser(&req); err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "Invalid request",
+        })
+    }
+    
+    event.Status = req.Status
+    event.ApprovalComment = req.ApprovalComment
+    
+    if err := config.DB.Save(&event).Error; err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to verify event",
+        })
+    }
+
+    // Reload data dengan owner
+    if err := config.DB.Preload("Owner").First(&event, event.EventID).Error; err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to load event data",
+        })
+    }
+    
+    return c.JSON(fiber.Map{
+        "message": "Event verification updated",
+        "event":   event,
+    })
+}
+
 func UpdateEvent(c *fiber.Ctx) error {
     user := c.Locals("user").(models.User)
     eventID := c.Params("id")
@@ -275,42 +320,6 @@ func UpdateEvent(c *fiber.Ctx) error {
     
     return c.JSON(fiber.Map{
         "message": "Event updated successfully",
-        "event":   event,
-    })
-}
-
-func VerifyEvent(c *fiber.Ctx) error {
-    eventID := c.Params("id")
-    
-    var event models.Event
-    if err := config.DB.Where("event_id = ?", eventID).First(&event).Error; err != nil {
-        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-            "error": "Event not found",
-        })
-    }
-    
-    var req struct {
-        Status          string `json:"status"`
-        ApprovalComment string `json:"approval_comment,omitempty"`
-    }
-    
-    if err := c.BodyParser(&req); err != nil {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Invalid request",
-        })
-    }
-    
-    event.Status = req.Status
-    event.ApprovalComment = req.ApprovalComment
-    
-    if err := config.DB.Save(&event).Error; err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-            "error": "Failed to verify event",
-        })
-    }
-    
-    return c.JSON(fiber.Map{
-        "message": "Event verification updated",
         "event":   event,
     })
 }

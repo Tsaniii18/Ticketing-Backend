@@ -39,6 +39,7 @@ type Event struct {
 	DateStart       time.Time `json:"date_start"`
 	DateEnd         time.Time `json:"date_end"`
 	Location        string    `gorm:"size:255" json:"location"`
+	City            string    `gorm:"size:100" json:"city"`
 	Description     string    `gorm:"type:text" json:"description"`
 	Image           string    `gorm:"size:255" json:"image"`
 	Flyer           string    `gorm:"size:255" json:"flyer"`
