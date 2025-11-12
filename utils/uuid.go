@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+
 	"github.com/google/uuid"
 )
 
@@ -39,4 +40,12 @@ func GenerateTransactionID() string {
 
 func GenerateTransactionDetailID() string {
 	return GeneratePrefixedUUID("tdet")
+}
+
+func GenerateRandomName() string {
+	return GeneratePrefixedUUID("name")
+}
+
+func GenerateRandomEmail() string {
+	return fmt.Sprintf("%s@gmail.com", uuid.New().String())
 }

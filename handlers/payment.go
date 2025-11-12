@@ -71,11 +71,18 @@ func PaymentMidtrans(c *fiber.Ctx) error {
 			})
 		}
 
+		var ticketCategory models.TicketCategory
+		if err := config.DB.First(&ticketCategory, "ticket_category_id = ?", cartItem.TicketCategoryID).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Ticket category not found",
+			})
+		}
+
 		// Create tickets
 		for i := 0; i < int(cartItem.Quantity); i++ {
 			ticket := models.Ticket{
 				TicketID:         utils.GenerateTicketID(),
-				EventID:          cartItem.TicketCategory.EventID,
+				EventID:          ticketCategory.EventID,
 				TicketCategoryID: cartItem.TicketCategoryID,
 				OwnerID:          user.UserID,
 				Status:           "pending", // Set status to pending until payment is confirmed
@@ -99,9 +106,17 @@ func PaymentMidtrans(c *fiber.Ctx) error {
 
 	var items []midtrans.ItemDetails
 	for _, cartItem := range cart {
+
+		var ticketCategory models.TicketCategory
+		if err := config.DB.First(&ticketCategory, "ticket_category_id = ?", cartItem.TicketCategoryID).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Ticket category not found",
+			})
+		}
+
 		item := midtrans.ItemDetails{
 			ID:       cartItem.TicketCategoryID,
-			Name:     cartItem.TicketCategory.Name,
+			Name:     ticketCategory.Name,
 			Price:    int64(cartItem.PriceTotal),
 			Qty:      int32(cartItem.Quantity),
 			Category: "Event Ticket",
@@ -179,8 +194,15 @@ func PaymentNotificationHandler(c *fiber.Ctx) error {
 				return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch tickets"})
 			}
 
+			var ticketCategory models.TicketCategory
+			if err := config.DB.First(&ticketCategory, "ticket_category_id = ?", detail.TicketCategoryID).Error; err != nil {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "Ticket category not found",
+				})
+			}
+
 			// Update sold count
-			config.DB.Model(&detail.TicketCategory).Update("sold", detail.TicketCategory.Sold+detail.Quantity)
+			config.DB.Model(&ticketCategory).Update("sold", ticketCategory.Sold+detail.Quantity)
 
 			for _, ticket := range tickets {
 				ticket.Status = "active"
@@ -191,7 +213,7 @@ func PaymentNotificationHandler(c *fiber.Ctx) error {
 			}
 
 			// Update event total sales
-			config.DB.Model(&models.Event{}).Where("event_id = ?", detail.TicketCategory.EventID).
+			config.DB.Model(&models.Event{}).Where("event_id = ?", ticketCategory.EventID).
 				Update("total_sales", gorm.Expr("total_sales + ?", detail.Subtotal))
 		}
 
