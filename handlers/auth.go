@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
@@ -27,38 +28,34 @@ type RegisterRequest struct {
 	Organization            string `json:"organization,omitempty"`             // Wajib untuk organizer
 	OrganizationType        string `json:"organization_type,omitempty"`        // Wajib untuk organizer
 	OrganizationDescription string `json:"organization_description,omitempty"` // Wajib untuk organizer
-	KTP                     string `json:"ktp,omitempty"`                      // Wajib untuk organizer
 }
 
 func Register(c *fiber.Ctx) error {
-
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("  .env file not found, using system environment")
+		log.Println(".env file not found, using system environment")
 	}
 
-	var req RegisterRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request",
-		})
-	}
+	// Parse form data
+	username := c.FormValue("username")
+	name := c.FormValue("name")
+	email := c.FormValue("email")
+	password := c.FormValue("password")
+	role := c.FormValue("role")
+	organization := c.FormValue("organization")
+	organizationType := c.FormValue("organization_type")
+	organizationDescription := c.FormValue("organization_description")
 
 	// Validate role
-	if req.Role != "user" && req.Role != "organizer" {
+	if role != "user" && role != "organizer" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Role must be either 'user' or 'organizer'",
 		})
 	}
 
-	// Validasi Organization & KTP untuk organizer
-	if req.Role == "organizer" {
-		if req.KTP == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "KTP is required for organizer registration",
-			})
-		}
-		if req.Organization == "" {
+	// Validasi Organization untuk organizer
+	if role == "organizer" {
+		if organization == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "Organization is required for organizer registration",
 			})
@@ -67,13 +64,13 @@ func Register(c *fiber.Ctx) error {
 
 	// Check if user already exists
 	var existingUser models.User
-	if err := config.DB.Where("username = ? OR email = ?", req.Username, req.Email).First(&existingUser).Error; err == nil {
+	if err := config.DB.Where("username = ? OR email = ?", username, email).First(&existingUser).Error; err == nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"error": "Username or email already exists",
 		})
 	}
 
-	hashedPassword, err := utils.HashPassword(req.Password)
+	hashedPassword, err := utils.HashPassword(password)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to hash password",
@@ -82,21 +79,57 @@ func Register(c *fiber.Ctx) error {
 
 	// Set register status based on role
 	registerStatus := "approved" // user langsung approved
-	if req.Role == "organizer" {
+	if role == "organizer" {
 		registerStatus = "pending" // organizer perlu approval admin
 	}
 
+	// Handle KTP upload untuk organizer
+	var ktpURL string
+	if role == "organizer" {
+		ktpFile, err := c.FormFile("ktp")
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "KTP image is required for organizer registration",
+			})
+		}
+
+		// Validate file size (max 5MB)
+		if ktpFile.Size > 5*1024*1024 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "KTP file size too large. Maximum size is 5MB",
+			})
+		}
+
+		// Open file
+		file, err := ktpFile.Open()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to open KTP file",
+			})
+		}
+		defer file.Close()
+
+		// Upload to Cloudinary
+		folder := "ticketing-app/ktp"
+		ktpURL, err = config.UploadImage(context.Background(), file, folder)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to upload KTP to Cloudinary",
+			})
+		}
+	}
+
 	user := models.User{
-		UserID:                  utils.GenerateUserID(req.Role),
-		Username:                req.Username,
-		Name:                    req.Name,
-		Email:                   req.Email,
+		UserID:                  utils.GenerateUserID(role),
+		Username:                username,
+		Name:                    name,
+		Email:                   email,
 		Password:                hashedPassword,
-		Role:                    req.Role,
-		Organization:            req.Organization,
-		OrganizationType:        req.OrganizationType,
-		OrganizationDescription: req.OrganizationDescription,
-		KTP:                     req.KTP,
+		Role:                    role,
+		Organization:            organization,
+		OrganizationType:        organizationType,
+		OrganizationDescription: organizationDescription,
+		KTP:                     ktpURL,
 		RegisterStatus:          registerStatus,
 		CreatedAt:               time.Now(),
 		UpdatedAt:               time.Now(),
@@ -121,6 +154,7 @@ func Register(c *fiber.Ctx) error {
 	})
 }
 
+// Login function - MODIFIKASI: Allow organizer dengan status pending untuk login
 func Login(c *fiber.Ctx) error {
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -143,19 +177,13 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check approval status for organizer
-	if user.Role == "organizer" && user.RegisterStatus != "approved" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Organizer account not approved yet",
-		})
-	}
-
 	// Generate JWT token dengan claims yang benar
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["user_id"] = user.UserID
 	claims["username"] = user.Username
 	claims["role"] = user.Role
+	claims["register_status"] = user.RegisterStatus // Tambahkan register_status ke claims
 	claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
 	seed := os.Getenv("JWT_SEED")
 
