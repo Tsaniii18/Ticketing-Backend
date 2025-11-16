@@ -428,21 +428,22 @@ func GetEventReport(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get ticket sales data
+	// Get ticket sales data per category
 	var purchaseData []TicketCategoryStats
 	var checkinData []TicketCategoryStats
-	var totalIncome float64
-	var totalTicketsSold int
-	var totalCheckins int
 
-	// Calculate purchase data and income
+	// Calculate total sold and checked-in tickets for the entire event
+	var totalSold int
+	var totalCheckedIn int
+
+	// Calculate purchase data and income per category
 	for _, ticketCategory := range event.TicketCategories {
 		var soldCount int64
 		var checkedInCount int64
 
 		// Count sold tickets for this category (status = paid)
 		config.DB.Model(&models.Ticket{}).
-			Where("ticket_category_id = ? AND status = ?", ticketCategory.TicketCategoryID, "paid").
+			Where("ticket_category_id = ? AND status IN (?, ?)", ticketCategory.TicketCategoryID, "paid", "used").
 			Count(&soldCount)
 
 		// Count checked-in tickets for this category
@@ -460,21 +461,52 @@ func GetEventReport(c *fiber.Ctx) error {
 			Value: int(checkedInCount),
 		})
 
-		totalIncome += float64(soldCount) * ticketCategory.Price
-		totalTicketsSold += int(soldCount)
-		totalCheckins += int(checkedInCount)
+		totalSold += int(soldCount)
+		totalCheckedIn += int(checkedInCount)
+	}
+
+	// Calculate additional metrics
+	soldPercentage := "0%"
+	if event.TotalTicketsSold > 0 && len(event.TicketCategories) > 0 {
+		// Calculate based on total quota
+		totalQuota := uint(0)
+		for _, tc := range event.TicketCategories {
+			totalQuota += tc.Quota
+		}
+		if totalQuota > 0 {
+			percentage := (float64(event.TotalTicketsSold) / float64(totalQuota)) * 100
+			soldPercentage = fmt.Sprintf("%.1f%%", percentage)
+		}
+	}
+
+	attendanceRate := "0%"
+	if event.TotalTicketsSold > 0 {
+		rate := (float64(event.TotalAttendant) / float64(event.TotalTicketsSold)) * 100
+		attendanceRate = fmt.Sprintf("%.1f%%", rate)
+	}
+
+	// Create metrics
+	metrics := fiber.Map{
+		"total_attendant":    event.TotalAttendant,
+		"total_tickets_sold": event.TotalTicketsSold,
+		"total_sales":        event.TotalSales,
+		"sold_percentage":    soldPercentage,
+		"attendance_rate":    attendanceRate,
 	}
 
 	report := EventReportResponse{
 		Event:            event,
 		PurchaseData:     purchaseData,
 		CheckinData:      checkinData,
-		TotalIncome:      totalIncome,
-		TotalTicketsSold: totalTicketsSold,
-		TotalCheckins:    totalCheckins,
+		TotalIncome:      event.TotalSales,
+		TotalTicketsSold: int(event.TotalTicketsSold),
+		TotalCheckins:    int(event.TotalAttendant),
 	}
 
-	return c.JSON(report)
+	return c.JSON(fiber.Map{
+		"report":  report,
+		"metrics": metrics,
+	})
 }
 
 func DownloadEventReport(c *fiber.Ctx) error {
@@ -498,9 +530,9 @@ func DownloadEventReport(c *fiber.Ctx) error {
 	}
 
 	// Generate CSV report
-	csvData := "Kategori Tiket,Tiket Terjual,Tiket Check-in,Pendapatan\n"
-	var totalIncome float64
+	csvData := "Kategori Tiket,Tiket Terjual,Tiket Check-in,Pendapatan Kategori\n"
 
+	// Hitung data per kategori
 	for _, ticketCategory := range event.TicketCategories {
 		var soldCount int64
 		var checkedInCount int64
@@ -514,13 +546,16 @@ func DownloadEventReport(c *fiber.Ctx) error {
 			Count(&checkedInCount)
 
 		categoryIncome := float64(soldCount) * ticketCategory.Price
-		totalIncome += categoryIncome
 
 		csvData += fmt.Sprintf("%s,%d,%d,%.2f\n",
 			ticketCategory.Name, soldCount, checkedInCount, categoryIncome)
 	}
 
-	csvData += fmt.Sprintf("Total,,,%.2f\n", totalIncome)
+	// Tambahkan total keseluruhan
+	csvData += fmt.Sprintf("\nTotal Keseluruhan\n")
+	csvData += fmt.Sprintf("Total Tiket Terjual:,%d\n", event.TotalTicketsSold)
+	csvData += fmt.Sprintf("Total Check-in:,%d\n", event.TotalAttendant)
+	csvData += fmt.Sprintf("Total Pendapatan:,.2f\n", event.TotalSales)
 
 	c.Set("Content-Type", "text/csv")
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=report-%s.csv", eventID))
