@@ -432,6 +432,10 @@ func GetEventReport(c *fiber.Ctx) error {
 	var purchaseData []TicketCategoryStats
 	var checkinData []TicketCategoryStats
 
+	// Calculate total sold and checked-in tickets for the entire event
+	var totalSold int
+	var totalCheckedIn int
+
 	// Calculate purchase data and income per category
 	for _, ticketCategory := range event.TicketCategories {
 		var soldCount int64
@@ -439,7 +443,7 @@ func GetEventReport(c *fiber.Ctx) error {
 
 		// Count sold tickets for this category (status = paid)
 		config.DB.Model(&models.Ticket{}).
-			Where("ticket_category_id = ? AND status = ?", ticketCategory.TicketCategoryID, "paid").
+			Where("ticket_category_id = ? AND status IN (?, ?)", ticketCategory.TicketCategoryID, "paid", "used").
 			Count(&soldCount)
 
 		// Count checked-in tickets for this category
@@ -456,18 +460,53 @@ func GetEventReport(c *fiber.Ctx) error {
 			Name:  ticketCategory.Name,
 			Value: int(checkedInCount),
 		})
+
+		totalSold += int(soldCount)
+		totalCheckedIn += int(checkedInCount)
+	}
+
+	// Calculate additional metrics
+	soldPercentage := "0%"
+	if event.TotalTicketsSold > 0 && len(event.TicketCategories) > 0 {
+		// Calculate based on total quota
+		totalQuota := uint(0)
+		for _, tc := range event.TicketCategories {
+			totalQuota += tc.Quota
+		}
+		if totalQuota > 0 {
+			percentage := (float64(event.TotalTicketsSold) / float64(totalQuota)) * 100
+			soldPercentage = fmt.Sprintf("%.1f%%", percentage)
+		}
+	}
+
+	attendanceRate := "0%"
+	if event.TotalTicketsSold > 0 {
+		rate := (float64(event.TotalAttendant) / float64(event.TotalTicketsSold)) * 100
+		attendanceRate = fmt.Sprintf("%.1f%%", rate)
+	}
+
+	// Create metrics
+	metrics := fiber.Map{
+		"total_attendant":    event.TotalAttendant,
+		"total_tickets_sold": event.TotalTicketsSold,
+		"total_sales":        event.TotalSales,
+		"sold_percentage":    soldPercentage,
+		"attendance_rate":    attendanceRate,
 	}
 
 	report := EventReportResponse{
 		Event:            event,
 		PurchaseData:     purchaseData,
 		CheckinData:      checkinData,
-		TotalIncome:      event.TotalSales, // Gunakan data dari Event
-		TotalTicketsSold: int(event.TotalTicketsSold), // Gunakan data dari Event
-		TotalCheckins:    int(event.TotalAttendant), // Gunakan data dari Event
+		TotalIncome:      event.TotalSales,
+		TotalTicketsSold: int(event.TotalTicketsSold),
+		TotalCheckins:    int(event.TotalAttendant),
 	}
 
-	return c.JSON(report)
+	return c.JSON(fiber.Map{
+		"report":  report,
+		"metrics": metrics,
+	})
 }
 
 func DownloadEventReport(c *fiber.Ctx) error {
