@@ -68,6 +68,7 @@ type TicketCategory struct {
 	DateTimeEnd      time.Time `json:"date_time_end"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	Attendant        uint      `gorm:"default:0" json:"attendant"`
 
 	// Relationships
 	Tickets            []Ticket            `gorm:"foreignKey:TicketCategoryID" json:"tickets,omitempty"`

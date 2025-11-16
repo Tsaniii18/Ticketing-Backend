@@ -37,7 +37,9 @@ func main() {
 	// Setup routes
 	routes.SetupRoutes(app)
 
-	handlers.DefaultAdminSetup()
+	if err := handlers.DefaultAdminSetup(); err != nil {
+		log.Fatal("Failed to setup default admin:", err)
+	}
 
 	log.Println("Server running on port 3000")
 	log.Fatal(app.Listen(":3000"))

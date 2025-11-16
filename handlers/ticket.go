@@ -3,6 +3,8 @@ package handlers
 import (
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/Tsaniii18/Ticketing-Backend/config"
 	"github.com/Tsaniii18/Ticketing-Backend/models"
 	"github.com/Tsaniii18/Ticketing-Backend/utils"
@@ -24,24 +26,55 @@ func GetTickets(c *fiber.Ctx) error {
 
 func CheckInTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
+	eventID := c.Params("event_id")
 
 	var ticket models.Ticket
-	if err := config.DB.Preload("Event").First(&ticket, ticketID).Error; err != nil {
+	tx := config.DB.Begin()
+	if err := tx.Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to start transaction",
+		})
+	}
+	if err := tx.First(&ticket, "ticket_id = ? && event_id = ?", ticketID, eventID).Error; err != nil {
+		tx.Rollback()
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Ticket not found",
 		})
 	}
 
 	if ticket.Status == "used" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		tx.Rollback()
+		return c.Status(fiber.StatusNotAcceptable).JSON(fiber.Map{
 			"error": "Ticket already used",
 		})
 	}
 
+	if ticket.Status != "active" {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotAcceptable).JSON(fiber.Map{
+			"error": "Ticket not active",
+		})
+	}
+
 	ticket.Status = "used"
-	if err := config.DB.Save(&ticket).Error; err != nil {
+	if err := tx.Save(&ticket).Error; err != nil {
+		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to check in ticket",
+		})
+	}
+
+	if err := tx.Model(&models.TicketCategory{}).Where("ticket_category_id = ?", ticket.TicketCategoryID).UpdateColumn("attendant", gorm.Expr("attendant + ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update attendant count",
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to commit transaction",
 		})
 	}
 
