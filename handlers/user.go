@@ -63,14 +63,22 @@ func UpdateProfile(c *fiber.Ctx) error {
 }
 
 func GetUsers(c *fiber.Ctx) error {
-	var users []models.User
-	if err := config.DB.Find(&users).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch users",
-		})
-	}
+    role := c.Query("role")
+    
+    var users []models.User
+    query := config.DB
+    
+    if role != "" {
+        query = query.Where("role = ?", role)
+    }
+    
+    if err := query.Find(&users).Error; err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to fetch users",
+        })
+    }
 
-	return c.JSON(users)
+    return c.JSON(users)
 }
 
 func GetUserByID(c *fiber.Ctx) error {
