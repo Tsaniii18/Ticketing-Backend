@@ -135,6 +135,7 @@ func PaymentMidtrans(c *fiber.Ctx) error {
 				Code:             utils.GenerateTicketCode(), // GENERATE UNIQUE CODE
 				CreatedAt:        time.Now(),
 				UpdatedAt:        time.Now(),
+				ExpiresAt:        time.Now().Add(1 * time.Minute),
 			}
 
 			if err := tx.Create(&ticket).Error; err != nil {
@@ -322,7 +323,6 @@ func handleSettlement(c *fiber.Ctx, orderID string, notifPayload map[string]inte
 				detail.TicketCategoryID, detail.OwnerID, "pending").
 			Updates(map[string]interface{}{
 				"status": "active",
-				// "code":   utils.GenerateTicketCode(),
 			}).Error; err != nil {
 			tx.Rollback()
 			log.Printf("Failed to update tickets status: %v", err)
