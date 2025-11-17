@@ -398,6 +398,7 @@ type EventReportResponse struct {
 	Event            models.Event          `json:"event"`
 	PurchaseData     []TicketCategoryStats `json:"purchase_data"`
 	CheckinData      []TicketCategoryStats `json:"checkin_data"`
+	AttendantData    []TicketCategoryStats `json:"attendant_data"`
 	TotalIncome      float64               `json:"total_income"`
 	TotalTicketsSold int                   `json:"total_tickets_sold"`
 	TotalCheckins    int                   `json:"total_checkins"`
@@ -431,6 +432,7 @@ func GetEventReport(c *fiber.Ctx) error {
 	// Get ticket sales data per category
 	var purchaseData []TicketCategoryStats
 	var checkinData []TicketCategoryStats
+	var attendantData []TicketCategoryStats
 
 	// Calculate total sold and checked-in tickets for the entire event
 	var totalSold int
@@ -441,9 +443,9 @@ func GetEventReport(c *fiber.Ctx) error {
 		var soldCount int64
 		var checkedInCount int64
 
-		// Count sold tickets for this category (status = paid)
+		// Count sold tickets for this category (status = active)
 		config.DB.Model(&models.Ticket{}).
-			Where("ticket_category_id = ? AND status IN (?, ?)", ticketCategory.TicketCategoryID, "paid", "used").
+			Where("ticket_category_id = ? AND status IN (?, ?)", ticketCategory.TicketCategoryID, "active", "used").
 			Count(&soldCount)
 
 		// Count checked-in tickets for this category
@@ -459,6 +461,11 @@ func GetEventReport(c *fiber.Ctx) error {
 		checkinData = append(checkinData, TicketCategoryStats{
 			Name:  ticketCategory.Name,
 			Value: int(checkedInCount),
+		})
+
+		attendantData = append(attendantData, TicketCategoryStats{
+			Name:  ticketCategory.Name,
+			Value: int(ticketCategory.Attendant),
 		})
 
 		totalSold += int(soldCount)
@@ -498,6 +505,7 @@ func GetEventReport(c *fiber.Ctx) error {
 		Event:            event,
 		PurchaseData:     purchaseData,
 		CheckinData:      checkinData,
+		AttendantData:    attendantData,
 		TotalIncome:      event.TotalSales,
 		TotalTicketsSold: int(event.TotalTicketsSold),
 		TotalCheckins:    int(event.TotalAttendant),
