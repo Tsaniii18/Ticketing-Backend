@@ -7,6 +7,7 @@ import (
 	"github.com/Tsaniii18/Ticketing-Backend/config"
 	"github.com/Tsaniii18/Ticketing-Backend/models"
 	"github.com/gofiber/fiber/v2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func GetProfile(c *fiber.Ctx) error {
@@ -17,20 +18,29 @@ func GetProfile(c *fiber.Ctx) error {
 func UpdateProfile(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
 
+	// Hanya ambil field yang boleh diubah
 	name := c.FormValue("name")
 	email := c.FormValue("email")
+	password := c.FormValue("password")
 	organization := c.FormValue("organization")
 	organizationType := c.FormValue("organization_type")
 	organizationDescription := c.FormValue("organization_description")
-	ktp := c.FormValue("ktp")
+	// KTP sengaja tidak diambil dari form karena tidak boleh diubah
 
 	updateData := map[string]interface{}{
-		"Name":                    name,
-		"Email":                   email,
-		"Organization":            organization,
-		"OrganizationType":        organizationType,
-		"OrganizationDescription": organizationDescription,
-		"KTP":                     ktp,
+		"Name":  name,
+		"Email": email,
+	}
+
+	// Handle password update jika ada
+	if password != "" {
+		hashedPassword, err := HashPassword(password)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to hash password",
+			})
+		}
+		updateData["Password"] = hashedPassword
 	}
 
 	// Handle profile picture upload
@@ -50,9 +60,30 @@ func UpdateProfile(c *fiber.Ctx) error {
 		}
 	}
 
+	// Untuk organizer, update field organisasi hanya jika ada nilai
+	if user.Role == "organizer" {
+		if organization != "" {
+			updateData["Organization"] = organization
+		}
+		if organizationType != "" {
+			updateData["OrganizationType"] = organizationType
+		}
+		if organizationDescription != "" {
+			updateData["OrganizationDescription"] = organizationDescription
+		}
+		// KTP tidak diupdate karena tidak boleh diubah
+	}
+
 	if err := config.DB.Model(&user).Updates(updateData).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to update profile",
+		})
+	}
+
+	// Reload user data untuk mendapatkan data terbaru
+	if err := config.DB.First(&user, "user_id = ?", user.UserID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch updated profile",
 		})
 	}
 
@@ -63,22 +94,22 @@ func UpdateProfile(c *fiber.Ctx) error {
 }
 
 func GetUsers(c *fiber.Ctx) error {
-    role := c.Query("role")
-    
-    var users []models.User
-    query := config.DB
-    
-    if role != "" {
-        query = query.Where("role = ?", role)
-    }
-    
-    if err := query.Find(&users).Error; err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-            "error": "Failed to fetch users",
-        })
-    }
+	role := c.Query("role")
 
-    return c.JSON(users)
+	var users []models.User
+	query := config.DB
+
+	if role != "" {
+		query = query.Where("role = ?", role)
+	}
+
+	if err := query.Find(&users).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch users",
+		})
+	}
+
+	return c.JSON(users)
 }
 
 func GetUserByID(c *fiber.Ctx) error {
@@ -143,4 +174,17 @@ func VerifyUser(c *fiber.Ctx) error {
 			"register_comment": user.RegisterComment,
 		},
 	})
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
