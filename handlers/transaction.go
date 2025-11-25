@@ -93,7 +93,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 			var tickets []models.Ticket
 			config.DB.
 				Where("ticket_category_id = ? AND owner_id = ? AND (status = ? OR status = ?)",
-					detail.TicketCategoryID, user.UserID, "active", "checked_in").
+					detail.TicketCategoryID, user.UserID, "active", "used").
 				Limit(int(detail.Quantity)).
 				Find(&tickets)
 

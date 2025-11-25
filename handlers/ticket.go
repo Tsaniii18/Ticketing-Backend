@@ -29,7 +29,7 @@ type ticketCategoryResponse struct {
 type eventResponse struct {
 	Name      string    `json:"name"`
 	Location  string    `json:"location"`
-	Venue      string    `json:"Venue"`
+	Venue     string    `json:"Venue"`
 	DateStart time.Time `json:"date_start"`
 	DateEnd   time.Time `json:"date_end"`
 }
@@ -72,7 +72,7 @@ func GetTickets(c *fiber.Ctx) error {
 		eventResponse := eventResponse{
 			Name:      event.Name,
 			Location:  event.Location,
-			Venue:      event.Venue,
+			Venue:     event.Venue,
 			DateStart: event.DateStart,
 			DateEnd:   event.DateEnd,
 		}
@@ -90,8 +90,8 @@ func GetTickets(c *fiber.Ctx) error {
 }
 
 func CheckInTicket(c *fiber.Ctx) error {
-	ticketID := c.Params("id")
 	eventID := c.Params("event_id")
+	codeEvent := c.Params("id")
 
 	var ticket models.Ticket
 	tx := config.DB.Begin()
@@ -100,10 +100,10 @@ func CheckInTicket(c *fiber.Ctx) error {
 			"error": "Failed to start transaction",
 		})
 	}
-	if err := tx.First(&ticket, "ticket_id = ? && event_id = ?", ticketID, eventID).Error; err != nil {
+	if err := tx.First(&ticket, "code = ? && event_id = ?", codeEvent, eventID).Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Ticket not found",
+			"error": "Ticket not found or Ticket code invalid",
 		})
 	}
 
@@ -194,7 +194,7 @@ func GetTicketCode(c *fiber.Ctx) error {
 	eventResponse := eventResponse{
 		Name:      event.Name,
 		Location:  event.Location,
-		Venue:      event.Venue,
+		Venue:     event.Venue,
 		DateStart: event.DateStart,
 		DateEnd:   event.DateEnd,
 	}
@@ -211,7 +211,7 @@ func GetTicketCode(c *fiber.Ctx) error {
 	if !ticket.ExpiresAt.IsZero() && ticket.ExpiresAt.Before(time.Now()) {
 
 		ticket.Code = utils.GenerateTicketCode()
-		ticket.ExpiresAt = time.Now().Add(3 * time.Minute)
+		ticket.ExpiresAt = time.Now().Add(30 * time.Minute)
 
 		if err := tx.Save(&ticket).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
