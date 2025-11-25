@@ -42,7 +42,7 @@ type Event struct {
 	Venue            string    `gorm:"size:100" json:"venue"`
 	District         string    `gorm:"size:100" json:"district"`
 	Description      string    `gorm:"type:text" json:"description"`
-	Rules            string    `gorm:"type:text" json:"rules"` 
+	Rules            string    `gorm:"type:text" json:"rules"`
 	Image            string    `gorm:"size:255" json:"image"`
 	Flyer            string    `gorm:"size:255" json:"flyer"`
 	Category         string    `gorm:"size:50" json:"category"`
@@ -114,6 +114,7 @@ type TransactionHistory struct {
 	PriceTotal        float64   `gorm:"type:decimal(10,2)" json:"price_total"`
 	CreatedAt         time.Time `json:"created_at"`
 	TransactionStatus string    `gorm:"size:20;default:pending" json:"transaction_status"`
+	LinkPayment       string    `gorm:"size:255" json:"link_payment"`
 
 	// Relationships
 	Owner              User                `gorm:"foreignKey:OwnerID" json:"owner"`

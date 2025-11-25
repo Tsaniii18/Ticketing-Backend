@@ -96,8 +96,7 @@ func PaymentMidtrans(c *fiber.Ctx) error {
 		TransactionStatus: "pending",
 	}
 
-	if err := tx.Create(&transaction).Error; err != nil {
-		tx.Rollback()
+	if err := config.DB.Create(&transaction).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to create transaction: " + err.Error(),
 		})
@@ -198,6 +197,12 @@ func PaymentMidtrans(c *fiber.Ctx) error {
 			"error":          "Failed to create Midtrans payment: " + err.Error(),
 			"transaction_id": transaction.TransactionID,
 		})
+	}
+
+	if err := config.DB.Model(&models.TransactionHistory{}).
+		Where("transaction_id = ?", transaction.TransactionID).
+		Update("link_payment", snapResp.RedirectURL).Error; err != nil {
+		log.Printf("Failed to update payment link: %v", err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{

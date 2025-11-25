@@ -26,15 +26,15 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 	}
 
 	type EventInTransactionResponse struct {
-		EventID        string                 `json:"event_id"`
-		EventName      string                 `json:"event_name"`
-		Location       string                 `json:"location"`
-		Venue           string                 `json:"Venue"`
-		DateStart      time.Time              `json:"date_start"`
-		DateEnd        time.Time              `json:"date_end"`
-		Image          string                 `json:"image"`
-		TicketDetails  []TicketDetailResponse `json:"ticket_details"`
-		EventSubtotal  float64                `json:"event_subtotal"`
+		EventID       string                 `json:"event_id"`
+		EventName     string                 `json:"event_name"`
+		Location      string                 `json:"location"`
+		Venue         string                 `json:"Venue"`
+		DateStart     time.Time              `json:"date_start"`
+		DateEnd       time.Time              `json:"date_end"`
+		Image         string                 `json:"image"`
+		TicketDetails []TicketDetailResponse `json:"ticket_details"`
+		EventSubtotal float64                `json:"event_subtotal"`
 	}
 
 	type TransactionHistoryResponse struct {
@@ -42,6 +42,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 		TransactionTime   time.Time                    `json:"transaction_time"`
 		TransactionStatus string                       `json:"transaction_status"`
 		PriceTotal        float64                      `json:"price_total"`
+		LinkPayment       string                       `json:"link_payment"`
 		Events            []EventInTransactionResponse `json:"events"`
 	}
 
@@ -70,7 +71,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 
 		// Group by event
 		eventMap := make(map[string]*EventInTransactionResponse)
-		
+
 		for _, detail := range transactionDetails {
 			// Get ticket category info
 			var ticketCategory models.TicketCategory
@@ -91,7 +92,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 			// Get tickets untuk category ini dalam transaksi ini
 			var tickets []models.Ticket
 			config.DB.
-				Where("ticket_category_id = ? AND owner_id = ? AND (status = ? OR status = ?)", 
+				Where("ticket_category_id = ? AND owner_id = ? AND (status = ? OR status = ?)",
 					detail.TicketCategoryID, user.UserID, "active", "checked_in").
 				Limit(int(detail.Quantity)).
 				Find(&tickets)
@@ -102,7 +103,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 					EventID:       event.EventID,
 					EventName:     event.Name,
 					Location:      event.Location,
-					Venue:          event.Venue,
+					Venue:         event.Venue,
 					DateStart:     event.DateStart,
 					DateEnd:       event.DateEnd,
 					Image:         event.Image,
@@ -142,6 +143,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 			TransactionID:     transaction.TransactionID,
 			TransactionTime:   transaction.TransactionTime,
 			TransactionStatus: transaction.TransactionStatus,
+			LinkPayment:       transaction.LinkPayment,
 			PriceTotal:        transaction.PriceTotal,
 			Events:            events,
 		})
@@ -175,7 +177,7 @@ func GetTransactionDetail(c *fiber.Ctx) error {
 		EventID       string                 `json:"event_id"`
 		EventName     string                 `json:"event_name"`
 		Location      string                 `json:"location"`
-		Venue          string                 `json:"Venue"`
+		Venue         string                 `json:"Venue"`
 		DateStart     time.Time              `json:"date_start"`
 		DateEnd       time.Time              `json:"date_end"`
 		Image         string                 `json:"image"`
@@ -227,7 +229,7 @@ func GetTransactionDetail(c *fiber.Ctx) error {
 		// Get tickets
 		var tickets []models.Ticket
 		config.DB.
-			Where("ticket_category_id = ? AND owner_id = ? AND (status = ? OR status = ?)", 
+			Where("ticket_category_id = ? AND owner_id = ? AND (status = ? OR status = ?)",
 				detail.TicketCategoryID, user.UserID, "active", "checked_in").
 			Limit(int(detail.Quantity)).
 			Find(&tickets)
@@ -238,7 +240,7 @@ func GetTransactionDetail(c *fiber.Ctx) error {
 				EventID:       event.EventID,
 				EventName:     event.Name,
 				Location:      event.Location,
-				Venue:          event.Venue,
+				Venue:         event.Venue,
 				DateStart:     event.DateStart,
 				DateEnd:       event.DateEnd,
 				Image:         event.Image,
