@@ -110,7 +110,7 @@ func AddToCart(c *fiber.Ctx) error {
 				DateStart:        event.DateStart,
 				DateEnd:          event.DateEnd,
 				Location:         event.Location,
-				City:             event.City,
+				Venue:             event.Venue,
 				Description:      event.Description,
 				Image:            event.Image,
 				Flyer:            event.Flyer,
@@ -189,7 +189,7 @@ func AddToCart(c *fiber.Ctx) error {
 			DateStart:        event.DateStart,
 			DateEnd:          event.DateEnd,
 			Location:         event.Location,
-			City:             event.City,
+			Venue:             event.Venue,
 			Description:      event.Description,
 			Image:            event.Image,
 			Flyer:            event.Flyer,
@@ -240,7 +240,7 @@ type EventResponse struct {
 	DateStart        time.Time `json:"date_start"`
 	DateEnd          time.Time `json:"date_end"`
 	Location         string    `json:"location"`
-	City             string    `json:"city"`
+	Venue             string    `json:"Venue"`
 	Description      string    `json:"description"`
 	Image            string    `json:"image"`
 	Flyer            string    `json:"flyer"`
@@ -305,7 +305,7 @@ func GetCart(c *fiber.Ctx) error {
 				DateStart:        event.DateStart,
 				DateEnd:          event.DateEnd,
 				Location:         event.Location,
-				City:             event.City,
+				Venue:            event.Venue,
 				Description:      event.Description,
 				Image:            event.Image,
 				Flyer:            event.Flyer,
@@ -425,7 +425,7 @@ func UpdateCart(c *fiber.Ctx) error {
 			DateStart:        event.DateStart,
 			DateEnd:          event.DateEnd,
 			Location:         event.Location,
-			City:             event.City,
+			Venue:             event.Venue,
 			Description:      event.Description,
 			Image:            event.Image,
 			Flyer:            event.Flyer,

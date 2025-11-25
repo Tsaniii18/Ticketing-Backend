@@ -29,7 +29,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 		EventID        string                 `json:"event_id"`
 		EventName      string                 `json:"event_name"`
 		Location       string                 `json:"location"`
-		City           string                 `json:"city"`
+		Venue           string                 `json:"Venue"`
 		DateStart      time.Time              `json:"date_start"`
 		DateEnd        time.Time              `json:"date_end"`
 		Image          string                 `json:"image"`
@@ -102,7 +102,7 @@ func GetTransactionHistory(c *fiber.Ctx) error {
 					EventID:       event.EventID,
 					EventName:     event.Name,
 					Location:      event.Location,
-					City:          event.City,
+					Venue:          event.Venue,
 					DateStart:     event.DateStart,
 					DateEnd:       event.DateEnd,
 					Image:         event.Image,
@@ -175,7 +175,7 @@ func GetTransactionDetail(c *fiber.Ctx) error {
 		EventID       string                 `json:"event_id"`
 		EventName     string                 `json:"event_name"`
 		Location      string                 `json:"location"`
-		City          string                 `json:"city"`
+		Venue          string                 `json:"Venue"`
 		DateStart     time.Time              `json:"date_start"`
 		DateEnd       time.Time              `json:"date_end"`
 		Image         string                 `json:"image"`
@@ -238,7 +238,7 @@ func GetTransactionDetail(c *fiber.Ctx) error {
 				EventID:       event.EventID,
 				EventName:     event.Name,
 				Location:      event.Location,
-				City:          event.City,
+				Venue:          event.Venue,
 				DateStart:     event.DateStart,
 				DateEnd:       event.DateEnd,
 				Image:         event.Image,

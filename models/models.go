@@ -39,11 +39,14 @@ type Event struct {
 	DateStart        time.Time `json:"date_start"`
 	DateEnd          time.Time `json:"date_end"`
 	Location         string    `gorm:"size:255" json:"location"`
-	City             string    `gorm:"size:100" json:"city"`
+	Venue            string    `gorm:"size:100" json:"venue"`
+	District         string    `gorm:"size:100" json:"district"`
 	Description      string    `gorm:"type:text" json:"description"`
+	Rules            string    `gorm:"type:text" json:"rules"` 
 	Image            string    `gorm:"size:255" json:"image"`
 	Flyer            string    `gorm:"size:255" json:"flyer"`
 	Category         string    `gorm:"size:50" json:"category"`
+	ChildCategory    string    `gorm:"size:50" json:"child_category"`
 	TotalAttendant   uint      `gorm:"default:0" json:"total_attendant"`
 	TotalSales       float64   `gorm:"type:decimal(10,2);default:0" json:"total_sales"`
 	TotalTicketsSold uint      `gorm:"default:0" json:"total_tickets_sold"`

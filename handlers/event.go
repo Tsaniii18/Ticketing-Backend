@@ -13,17 +13,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type CreateEventRequest struct {
-	Name             string                  `json:"name"`
-	DateStart        string                  `json:"date_start"`
-	DateEnd          string                  `json:"date_end"`
-	Location         string                  `json:"location"`
-	City             string                  `json:"city"`
-	Description      string                  `json:"description"`
-	Category         string                  `json:"category"`
-	TicketCategories []TicketCategoryRequest `json:"ticket_categories"`
-}
-
 type TicketCategoryRequest struct {
 	Name          string  `json:"name"`
 	Price         float64 `json:"price"`
@@ -33,15 +22,32 @@ type TicketCategoryRequest struct {
 	DateTimeEnd   string  `json:"date_time_end"`
 }
 
+type CreateEventRequest struct {
+	Name             string                  `json:"name"`
+	DateStart        string                  `json:"date_start"`
+	DateEnd          string                  `json:"date_end"`
+	Location         string                  `json:"location"`
+	Venue            string                  `json:"venue"`   
+	District         string                  `json:"district"`
+	Description      string                  `json:"description"`
+	Rules            string                  `json:"rules"` 
+	Category         string                  `json:"category"`
+	ChildCategory    string                  `json:"child_category"`
+	TicketCategories []TicketCategoryRequest `json:"ticket_categories"`
+}
+
 func CreateEvent(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
 	name := c.FormValue("name")
 	dateStartStr := c.FormValue("date_start")
 	dateEndStr := c.FormValue("date_end")
 	location := c.FormValue("location")
-	city := c.FormValue("city")
+	venue := c.FormValue("venue")       
+	district := c.FormValue("district")  
 	description := c.FormValue("description")
+	rules := c.FormValue("rules") // Tambahkan rules
 	category := c.FormValue("category")
+	childCategory := c.FormValue("child_category") 
 	ticketCategoriesJSON := c.FormValue("ticket_categories")
 
 	var ticketCategories []TicketCategoryRequest
@@ -54,9 +60,9 @@ func CreateEvent(c *fiber.Ctx) error {
 	}
 
 	// Validasi required fields
-	if name == "" || dateStartStr == "" || dateEndStr == "" || location == "" || city == "" {
+	if name == "" || dateStartStr == "" || dateEndStr == "" || location == "" || venue == "" || district == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Missing required fields: name, date_start, date_end, location, city",
+			"error": "Missing required fields: name, date_start, date_end, location, venue, district",
 		})
 	}
 
@@ -75,7 +81,7 @@ func CreateEvent(c *fiber.Ctx) error {
 		})
 	}
 
-	// Handle image upload (sama seperti sebelumnya)
+	// Handle image upload
 	var imageURL, flyerURL string
 
 	imageFile, err := c.FormFile("image")
@@ -118,20 +124,23 @@ func CreateEvent(c *fiber.Ctx) error {
 
 	// Create event
 	event := models.Event{
-		EventID:     utils.GenerateEventID(),
-		Name:        name,
-		OwnerID:     user.UserID,
-		Status:      "pending",
-		DateStart:   dateStart,
-		DateEnd:     dateEnd,
-		Location:    location,
-		City:        city,
-		Description: description,
-		Image:       imageURL,
-		Flyer:       flyerURL,
-		Category:    category,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		EventID:       utils.GenerateEventID(),
+		Name:          name,
+		OwnerID:       user.UserID,
+		Status:        "pending",
+		DateStart:     dateStart,
+		DateEnd:       dateEnd,
+		Location:      location,
+		Venue:         venue,        
+		District:      district,     
+		Description:   description,
+		Rules:         rules, // Tambahkan rules
+		Image:         imageURL,
+		Flyer:         flyerURL,
+		Category:      category,
+		ChildCategory: childCategory, 
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	if err := tx.Create(&event).Error; err != nil {
@@ -209,107 +218,6 @@ func CreateEvent(c *fiber.Ctx) error {
 	})
 }
 
-func GetApprovedEvents(c *fiber.Ctx) error {
-	var events []models.Event
-	if err := config.DB.Preload("Owner").Preload("TicketCategories").Where("status = ?", "approved").Find(&events).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch events",
-		})
-	}
-
-	return c.JSON(events)
-}
-
-func GetMyEvents(c *fiber.Ctx) error {
-	user := c.Locals("user").(models.User)
-
-	var events []models.Event
-	if err := config.DB.Preload("Owner").Preload("TicketCategories").
-		Where("owner_id = ?", user.UserID).
-		Order("created_at DESC").
-		Find(&events).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch your events",
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "Events retrieved successfully",
-		"events":  events,
-	})
-}
-
-func GetEvents(c *fiber.Ctx) error {
-	var events []models.Event
-	if err := config.DB.Preload("Owner").Preload("TicketCategories").Find(&events).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch events",
-		})
-	}
-
-	return c.JSON(events)
-}
-
-func GetEvent(c *fiber.Ctx) error {
-	eventID := c.Params("id")
-
-	var event models.Event
-	if err := config.DB.Preload("Owner").Preload("TicketCategories").
-		Where("event_id = ?", eventID).
-		First(&event).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Event not found",
-		})
-	}
-
-	return c.JSON(event)
-}
-
-func VerifyEvent(c *fiber.Ctx) error {
-	eventID := c.Params("id")
-
-	var event models.Event
-	if err := config.DB.Preload("Owner").Where("event_id = ?", eventID).First(&event).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Event not found",
-		})
-	}
-
-	var req struct {
-		Status          string `json:"status"`
-		ApprovalComment string `json:"approval_comment,omitempty"`
-	}
-
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request",
-		})
-	}
-
-	event.Status = req.Status
-	event.ApprovalComment = req.ApprovalComment
-
-	if err := config.DB.Save(&event).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to verify event",
-		})
-	}
-
-	var eventWithOwner models.Event
-	if err := config.DB.Preload("Owner").Preload("TicketCategories").
-		Where("event_id = ?", event.EventID).
-		First(&eventWithOwner).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to load event data: " + err.Error(),
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "Event verification updated",
-		"event":   event,
-	})
-}
-
 func UpdateEvent(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
 	eventID := c.Params("id")
@@ -340,9 +248,12 @@ func UpdateEvent(c *fiber.Ctx) error {
 	dateStartStr := c.FormValue("date_start")
 	dateEndStr := c.FormValue("date_end")
 	location := c.FormValue("location")
-	city := c.FormValue("city")
+	venue := c.FormValue("venue")
+	district := c.FormValue("district")
 	description := c.FormValue("description")
+	rules := c.FormValue("rules") // Tambahkan rules
 	category := c.FormValue("category")
+	childCategory := c.FormValue("child_category")
 	ticketCategoriesJSON := c.FormValue("ticket_categories")
 
 	// Mulai transaction
@@ -366,17 +277,29 @@ func UpdateEvent(c *fiber.Ctx) error {
 		updateData["location"] = location
 		event.Location = location
 	}
-	if city != "" {
-		updateData["city"] = city
-		event.City = city
+	if venue != "" {
+		updateData["venue"] = venue
+		event.Venue = venue
+	}
+	if district != "" {
+		updateData["district"] = district
+		event.District = district
 	}
 	if description != "" {
 		updateData["description"] = description
 		event.Description = description
 	}
+	if rules != "" {
+		updateData["rules"] = rules // Tambahkan rules
+		event.Rules = rules
+	}
 	if category != "" {
 		updateData["category"] = category
 		event.Category = category
+	}
+	if childCategory != "" {
+		updateData["child_category"] = childCategory
+		event.ChildCategory = childCategory
 	}
 
 	// Parse dates if provided
@@ -529,6 +452,107 @@ func UpdateEvent(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"message": "Event updated successfully",
 		"event":   updatedEvent,
+	})
+}
+
+func GetApprovedEvents(c *fiber.Ctx) error {
+	var events []models.Event
+	if err := config.DB.Preload("Owner").Preload("TicketCategories").Where("status = ?", "approved").Find(&events).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch events",
+		})
+	}
+
+	return c.JSON(events)
+}
+
+func GetMyEvents(c *fiber.Ctx) error {
+	user := c.Locals("user").(models.User)
+
+	var events []models.Event
+	if err := config.DB.Preload("Owner").Preload("TicketCategories").
+		Where("owner_id = ?", user.UserID).
+		Order("created_at DESC").
+		Find(&events).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch your events",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Events retrieved successfully",
+		"events":  events,
+	})
+}
+
+func GetEvents(c *fiber.Ctx) error {
+	var events []models.Event
+	if err := config.DB.Preload("Owner").Preload("TicketCategories").Find(&events).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch events",
+		})
+	}
+
+	return c.JSON(events)
+}
+
+func GetEvent(c *fiber.Ctx) error {
+	eventID := c.Params("id")
+
+	var event models.Event
+	if err := config.DB.Preload("Owner").Preload("TicketCategories").
+		Where("event_id = ?", eventID).
+		First(&event).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Event not found",
+		})
+	}
+
+	return c.JSON(event)
+}
+
+func VerifyEvent(c *fiber.Ctx) error {
+	eventID := c.Params("id")
+
+	var event models.Event
+	if err := config.DB.Preload("Owner").Where("event_id = ?", eventID).First(&event).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Event not found",
+		})
+	}
+
+	var req struct {
+		Status          string `json:"status"`
+		ApprovalComment string `json:"approval_comment,omitempty"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request",
+		})
+	}
+
+	event.Status = req.Status
+	event.ApprovalComment = req.ApprovalComment
+
+	if err := config.DB.Save(&event).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to verify event",
+		})
+	}
+
+	var eventWithOwner models.Event
+	if err := config.DB.Preload("Owner").Preload("TicketCategories").
+		Where("event_id = ?", event.EventID).
+		First(&eventWithOwner).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to load event data: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Event verification updated",
+		"event":   event,
 	})
 }
 

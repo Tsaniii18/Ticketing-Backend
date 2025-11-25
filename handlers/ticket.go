@@ -29,7 +29,7 @@ type ticketCategoryResponse struct {
 type eventResponse struct {
 	Name      string    `json:"name"`
 	Location  string    `json:"location"`
-	City      string    `json:"city"`
+	Venue      string    `json:"Venue"`
 	DateStart time.Time `json:"date_start"`
 	DateEnd   time.Time `json:"date_end"`
 }
@@ -72,7 +72,7 @@ func GetTickets(c *fiber.Ctx) error {
 		eventResponse := eventResponse{
 			Name:      event.Name,
 			Location:  event.Location,
-			City:      event.City,
+			Venue:      event.Venue,
 			DateStart: event.DateStart,
 			DateEnd:   event.DateEnd,
 		}
@@ -194,7 +194,7 @@ func GetTicketCode(c *fiber.Ctx) error {
 	eventResponse := eventResponse{
 		Name:      event.Name,
 		Location:  event.Location,
-		City:      event.City,
+		Venue:      event.Venue,
 		DateStart: event.DateStart,
 		DateEnd:   event.DateEnd,
 	}
