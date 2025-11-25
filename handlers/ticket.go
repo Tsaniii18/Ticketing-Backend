@@ -240,3 +240,42 @@ func GetTicketCode(c *fiber.Ctx) error {
 		"ticket":  ticketResponse,
 	})
 }
+
+func UpdateTagTicket(c *fiber.Ctx) error {
+	TicketID := c.Params("id")
+	newTag := c.FormValue("tag")
+
+	var ticket models.Ticket
+	if err := config.DB.First(&ticket, "ticket_id = ?", TicketID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Ticket not found",
+		})
+	}
+
+	type tagRequest struct {
+		Tag string `json:"tag"`
+	}
+
+	var req = tagRequest{
+		Tag: newTag,
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	ticket.Tag = req.Tag
+
+	if err := config.DB.Save(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update ticket tag",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Ticket tag updated successfully",
+		"ticket":  ticket,
+	})
+}

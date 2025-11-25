@@ -89,6 +89,7 @@ type Ticket struct {
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 	ExpiresAt        time.Time `json:"expires_at"`
+	Tag              string    `gorm:"size:100" json:"tag" default:"My Ticket"`
 
 	// Relationships
 	Owner User `gorm:"foreignKey:OwnerID" json:"owner"`

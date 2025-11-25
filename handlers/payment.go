@@ -135,6 +135,7 @@ func PaymentMidtrans(c *fiber.Ctx) error {
 				CreatedAt:        time.Now(),
 				UpdatedAt:        time.Now(),
 				ExpiresAt:        time.Now().Add(1 * time.Minute),
+				Tag:              "My Ticket",
 			}
 
 			if err := tx.Create(&ticket).Error; err != nil {
