@@ -3,6 +3,8 @@ package handlers
 import (
 	"time"
 
+	"log"
+
 	"gorm.io/gorm"
 
 	"github.com/Tsaniii18/Ticketing-Backend/config"
@@ -243,7 +245,20 @@ func GetTicketCode(c *fiber.Ctx) error {
 
 func UpdateTagTicket(c *fiber.Ctx) error {
 	TicketID := c.Params("id")
-	newTag := c.FormValue("tag")
+	// newTag := c.FormValue("tag")
+
+	//parse body
+	var tagMap map[string]interface{}
+	if err := c.BodyParser(&tagMap); err != nil {
+		log.Printf("Error parsing notification payload: %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	newTag, ok := tagMap["tag"].(string)
+	if !ok {
+		log.Printf("Invalid order_id in notification")
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid order_id"})
+	}
 
 	var ticket models.Ticket
 	if err := config.DB.First(&ticket, "ticket_id = ?", TicketID).Error; err != nil {
