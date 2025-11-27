@@ -807,28 +807,33 @@ func AddLike(c *fiber.Ctx) error {
 
 	var existingLike models.EventLike
 	if err := config.DB.Where("user_id = ? AND event_id = ?", user.UserID, eventID).First(&existingLike).Error; err == nil {
-
+		// Unlike - hapus like yang ada
 		if err := config.DB.Delete(&existingLike).Error; err != nil {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-				"error": "Cannot un-like ",
-			})
-
-		}
-
-		event.TotalLikes--
-
-		if err := config.DB.Save(event).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to decrease like counts: " + err.Error(),
+				"error": "Failed to unlike event: " + err.Error(),
 			})
 		}
 
-		return c.Status(fiber.StatusContinue).JSON(fiber.Map{
-			"Message": "Undo",
-		})
+		// Kurangi total likes
+		if event.TotalLikes > 0 {
+			event.TotalLikes--
+		}
 
+		if err := config.DB.Save(&event).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to update like count: " + err.Error(),
+			})
+		}
+
+		// PERBAIKAN: Gunakan StatusOK (200) bukan StatusContinue (100)
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message":          "Unliked",
+			"action":           "unlike",
+			"event_total_like": event.TotalLikes,
+		})
 	}
 
+	// Like - tambah like baru
 	eventLike := models.EventLike{
 		UserID:  user.UserID,
 		EventID: eventID,
@@ -843,14 +848,15 @@ func AddLike(c *fiber.Ctx) error {
 
 	event.TotalLikes++
 
-	if err := config.DB.Save(event).Error; err != nil {
+	if err := config.DB.Save(&event).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to add like counts: " + err.Error(),
+			"error": "Failed to update like count: " + err.Error(),
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"message":          "Liked It",
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":          "Liked",
+		"action":           "like",
 		"event_total_like": event.TotalLikes,
 	})
 }
