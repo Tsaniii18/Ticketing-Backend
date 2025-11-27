@@ -18,6 +18,7 @@ type ticketResponse struct {
 	TicketID       string                  `json:"ticket_id"`
 	TicketCategory *ticketCategoryResponse `json:"ticket_category"`
 	Event          *eventResponse          `json:"event"`
+	Tag            string                  `json:"tag"`
 }
 
 type ticketCategoryResponse struct {
@@ -84,6 +85,7 @@ func GetTickets(c *fiber.Ctx) error {
 			TicketID:       ticket.TicketID,
 			TicketCategory: &ticketCategoryResponse,
 			Event:          &eventResponse,
+			Tag:            ticket.Tag,
 		}
 		ticketResponses = append(ticketResponses, ticketResponse)
 	}
