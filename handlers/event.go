@@ -170,6 +170,13 @@ func CreateEvent(c *fiber.Ctx) error {
 					"error": "Invalid date_time_end format in ticket category: " + err.Error(),
 				})
 			}
+			var ticketName models.TicketCategory
+			if err := tx.First(&ticketName, "name = ?", tcReq.Name).Error; err == nil {
+				tx.Rollback()
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "Duplicate ticket category name : " + tcReq.Name,
+				})
+			}
 
 			ticketCategory := models.TicketCategory{
 				TicketCategoryID: utils.GenerateTicketCategoryID(),
@@ -779,6 +786,7 @@ func DownloadEventReport(c *fiber.Ctx) error {
 	csvData += fmt.Sprintf("Total Tiket Terjual:,%d\n", event.TotalTicketsSold)
 	csvData += fmt.Sprintf("Total Check-in:,%d\n", event.TotalAttendant)
 	csvData += fmt.Sprintf("Total Pendapatan:,%f\n", event.TotalSales)
+	csvData += fmt.Sprintf("Total Like:,%d\n", event.TotalLikes)
 
 	c.Set("Content-Type", "text/csv")
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=report_%s.csv", event.Name))
@@ -843,7 +851,7 @@ func AddLike(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message":          "Liked It",
-		"event_like_count": event.TotalLikes,
+		"event_total_like": event.TotalLikes,
 	})
 }
 
@@ -856,9 +864,12 @@ func MyLikedEvent(c *fiber.Ctx) error {
 			"error": "Users event not found",
 		})
 	}
+
+	var number_of_likes = len(userFigure.LikedEvents)
 	return c.JSON(fiber.Map{
-		"message":     "Successfully",
-		"liked_event": userFigure.LikedEvents,
+		"message":         "Successfully",
+		"number_of_likes": number_of_likes,
+		"liked_event":     userFigure.LikedEvents,
 	})
 
 }
