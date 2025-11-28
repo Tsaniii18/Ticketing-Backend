@@ -27,7 +27,7 @@ func CreateFeedback(c *fiber.Ctx) error {
 		file, err := imageFile.Open()
 		if err == nil {
 			defer file.Close()
-			folder := fmt.Sprintf("ticketing-app/events/%s/images", user.UserID)
+			folder := fmt.Sprintf("ticketing-app/feedback/%s/images", user.UserID)
 			imageURL, err = config.UploadImage(context.Background(), file, folder)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

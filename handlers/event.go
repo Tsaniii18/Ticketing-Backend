@@ -7,6 +7,8 @@ import (
 	"log"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/Tsaniii18/Ticketing-Backend/config"
 	"github.com/Tsaniii18/Ticketing-Backend/models"
 	"github.com/Tsaniii18/Ticketing-Backend/utils"
@@ -171,7 +173,7 @@ func CreateEvent(c *fiber.Ctx) error {
 				})
 			}
 			var ticketName models.TicketCategory
-			if err := tx.First(&ticketName, "name = ?", tcReq.Name).Error; err == nil {
+			if err := tx.Model(&ticketName).Where("name = ? && event_id = ?", tcReq.Name, event.EventID).First(&ticketName).Error; err == nil {
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 					"error": "Duplicate ticket category name : " + tcReq.Name,
@@ -219,6 +221,8 @@ func CreateEvent(c *fiber.Ctx) error {
 			"error": "Failed to load event data: " + err.Error(),
 		})
 	}
+
+	ScheduleEventEnd(config.DB, event)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Event created successfully",
@@ -878,4 +882,41 @@ func MyLikedEvent(c *fiber.Ctx) error {
 		"liked_event":     userFigure.LikedEvents,
 	})
 
+}
+
+func ScheduleEventEnd(db *gorm.DB, event models.Event) {
+	durationEnd := time.Until(event.DateEnd)
+	durationStart := time.Until(event.DateStart)
+
+	go func() {
+		if durationStart > 0 {
+			log.Println("Event start in " + durationStart.String())
+			time.Sleep(durationStart)
+		}
+
+		if err := db.Model(&event).
+			Where("event_id = ?", event.EventID).
+			Update("status", "active").Error; err != nil {
+
+			log.Println("Failed to update event start:", err)
+		} else {
+			log.Println("Event " + event.EventID + " started.")
+		}
+	}()
+
+	go func() {
+		if durationEnd > 0 {
+			log.Println("Event end in " + durationEnd.String())
+			time.Sleep(durationEnd)
+		}
+
+		if err := db.Model(&event).
+			Where("event_id = ?", event.EventID).
+			Update("status", "ended").Error; err != nil {
+
+			log.Println("Failed to update event end:", err)
+		} else {
+			log.Println("Event " + event.EventID + " ended.")
+		}
+	}()
 }
