@@ -43,8 +43,8 @@ func SetupRoutes(app *fiber.App) {
 
 	// Ticket routes
 	ticket := app.Group("/api/tickets", middleware.AuthMiddleware)
-	ticket.Get("/", handlers.GetTickets)          
-	ticket.Get("/stats", handlers.GetTicketStats) 
+	ticket.Get("/", handlers.GetTickets)
+	ticket.Get("/stats", handlers.GetTicketStats)
 	ticket.Get("/:id", handlers.GetEvent)
 	ticket.Patch("/:event_id/:id/checkin", handlers.CheckInTicket)
 	ticket.Get("/:id/code", handlers.GetTicketCode)
@@ -66,4 +66,12 @@ func SetupRoutes(app *fiber.App) {
 	transaction := app.Group("/api/transactions", middleware.AuthMiddleware)
 	transaction.Get("/", handlers.GetTransactionHistory)
 	transaction.Get("/:id", handlers.GetTransactionDetail)
+
+	// Feedback routes
+	feedback := app.Group("/api/feedback", middleware.AuthMiddleware)
+	feedback.Post("/", handlers.CreateFeedback)
+	feedback.Get("/all", handlers.GetAllFeedbacks)
+	feedback.Get("/mine", handlers.GetMyFeedbacks)
+	feedback.Put("/detail/:id/status", handlers.UpdateStatusFeedback)
+	feedback.Get("/detail/:id", handlers.GetFeedback)
 }
