@@ -153,6 +153,7 @@ type Feedback struct {
 	Status           string `gorm:"size:20;default:active" json:"status"`
 	Comment          string `gorm:"type:text" json:"comment"`
 	Image            string `gorm:"size:255" json:"image"`
+	Reply            string `gorm:"type:text" json:"reply"`
 
 	User User `gorm:"foreignKey:OwnerID;reference:UserID" json:"user,omitempty"`
 }

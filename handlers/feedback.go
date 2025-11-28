@@ -146,9 +146,11 @@ func UpdateStatusFeedback(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid status"})
 	}
 
+	reply, _ := updateStatus["reply"].(string)
+
 	if err := config.DB.Model(&models.Feedback{}).
 		Where("feedback_id = ?", idFeedback).
-		Update("status", status).Error; err != nil {
+		Update("status", status).Update("reply", reply).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Feedback Not Fount",
 		})
@@ -156,7 +158,7 @@ func UpdateStatusFeedback(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message": "Success update status to " + status,
-		"reply":   "No good",
+		"reply":   reply,
 	})
 
 }
