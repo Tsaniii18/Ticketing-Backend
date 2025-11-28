@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"strings"
+
 	"github.com/google/uuid"
 )
 
@@ -51,4 +52,8 @@ func GenerateRandomName() string {
 
 func GenerateRandomEmail() string {
 	return fmt.Sprintf("%s@gmail.com", uuid.New().String())
+}
+
+func GenerateFeedID() string {
+	return GeneratePrefixedUUID("feed")
 }

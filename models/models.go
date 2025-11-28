@@ -28,6 +28,7 @@ type User struct {
 	Tickets              []Ticket             `gorm:"foreignKey:OwnerID" json:"tickets,omitempty"`
 	Carts                []Cart               `gorm:"foreignKey:OwnerID" json:"carts,omitempty"`
 	TransactionHistories []TransactionHistory `gorm:"foreignKey:OwnerID" json:"transaction_histories,omitempty"`
+	Feedback             []Feedback           `gorm:"foreignKey:OwnerID;reference:UserID" json:"feedback,omitempty"`
 	LikedEvents          []Event              `gorm:"many2many:event_likes;foreignKey:UserID;joinForeignKey:user_id;references:EventID;joinReferences:event_id" json:"liked_events,omitempty"`
 }
 
@@ -143,4 +144,15 @@ type EventLike struct {
 
 	User  User  `gorm:"foreignKey:UserID;references:UserID" json:"user"`
 	Event Event `gorm:"foreignKey:EventID;references:EventID" json:"event"`
+}
+
+type Feedback struct {
+	FeedbackID       string `gorm:"primaryKey;type:char(60);not null" json:"feedback_id"`
+	OwnerID          string `gorm:"column:owner_id;type:char(60);not null" json:"owner_id"`
+	FeedbackCategory string `gorm:"type:char(15);not null" json:"feedback_category"`
+	Status           string `gorm:"size:20;default:active" json:"status"`
+	Comment          string `gorm:"type:text" json:"comment"`
+	Image            string `gorm:"size:255" json:"image"`
+
+	User User `gorm:"foreignKey:OwnerID;reference:UserID" json:"user,omitempty"`
 }
