@@ -13,6 +13,18 @@ import (
 func AddToCart(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
 
+	if user.Role != "admin" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Admin can't item to cart",
+		})
+	}
+
+	if user.Role != "organizer" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "EO can't item to cart",
+		})
+	}
+
 	var cartData struct {
 		TicketCategoryID string `json:"ticket_category_id"`
 		Quantity         uint   `json:"quantity"`
@@ -110,7 +122,7 @@ func AddToCart(c *fiber.Ctx) error {
 				DateStart:        event.DateStart,
 				DateEnd:          event.DateEnd,
 				Location:         event.Location,
-				Venue:             event.Venue,
+				Venue:            event.Venue,
 				Description:      event.Description,
 				Image:            event.Image,
 				Flyer:            event.Flyer,
@@ -189,7 +201,7 @@ func AddToCart(c *fiber.Ctx) error {
 			DateStart:        event.DateStart,
 			DateEnd:          event.DateEnd,
 			Location:         event.Location,
-			Venue:             event.Venue,
+			Venue:            event.Venue,
 			Description:      event.Description,
 			Image:            event.Image,
 			Flyer:            event.Flyer,
@@ -240,7 +252,7 @@ type EventResponse struct {
 	DateStart        time.Time `json:"date_start"`
 	DateEnd          time.Time `json:"date_end"`
 	Location         string    `json:"location"`
-	Venue             string    `json:"Venue"`
+	Venue            string    `json:"Venue"`
 	Description      string    `json:"description"`
 	Image            string    `json:"image"`
 	Flyer            string    `json:"flyer"`
@@ -425,7 +437,7 @@ func UpdateCart(c *fiber.Ctx) error {
 			DateStart:        event.DateStart,
 			DateEnd:          event.DateEnd,
 			Location:         event.Location,
-			Venue:             event.Venue,
+			Venue:            event.Venue,
 			Description:      event.Description,
 			Image:            event.Image,
 			Flyer:            event.Flyer,
