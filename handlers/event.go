@@ -24,20 +24,6 @@ type TicketCategoryRequest struct {
 	DateTimeEnd   string  `json:"date_time_end"`
 }
 
-type CreateEventRequest struct {
-	Name             string                  `json:"name"`
-	DateStart        string                  `json:"date_start"`
-	DateEnd          string                  `json:"date_end"`
-	Location         string                  `json:"location"`
-	Venue            string                  `json:"venue"`
-	District         string                  `json:"district"`
-	Description      string                  `json:"description"`
-	Rules            string                  `json:"rules"`
-	Category         string                  `json:"category"`
-	ChildCategory    string                  `json:"child_category"`
-	TicketCategories []TicketCategoryRequest `json:"ticket_categories"`
-}
-
 func CreateEvent(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.User)
 	name := c.FormValue("name")
@@ -802,6 +788,18 @@ func AddLike(c *fiber.Ctx) error {
 	eventID := c.Params("id")
 	user := c.Locals("user").(models.User)
 
+	if user.Role != "admin" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User only",
+		})
+	}
+
+	if user.Role != "organizer" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User only",
+		})
+	}
+
 	var event models.Event
 	if err := config.DB.Where("event_id = ?", eventID).First(&event).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -920,3 +918,102 @@ func ScheduleEventEnd(db *gorm.DB, event models.Event) {
 		}
 	}()
 }
+
+func GetEventCategory(c *fiber.Ctx) error {
+
+	var allCategory []models.EventCategory
+	if err := config.DB.Model(&allCategory).Preload("ChildEventCategory").Find(&allCategory).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Event not found",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"event_category": allCategory,
+	})
+}
+
+type ChildEventCategoryRequest struct {
+	ParentCategoryID       string `json:"event_category_id"`
+	ChildEventCategoryName string `json:"child_event_category_name"`
+}
+
+func AddEventCategory(c *fiber.Ctx) error {
+	childCategoryName := c.FormValue("child_categories")
+	EventCategoryName := c.FormValue("event_category")
+
+	var childCategories []ChildEventCategoryRequest
+	if childCategoryName != "" {
+		if err := json.Unmarshal([]byte(childCategoryName), &childCategories); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid ticket categories JSON format: " + err.Error(),
+			})
+		}
+	}
+
+	tx := config.DB.Begin()
+	if tx.Error != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to start transaction",
+		})
+	}
+
+	var EventCategory models.EventCategory
+	if err := config.DB.Model(&models.EventCategory{}).Where(&EventCategory, "event_category_name = ?", EventCategoryName).Error; err != nil {
+
+		EventCategory := models.EventCategory{
+			EventCategoryID:   utils.GenerateEventCategoryID(),
+			EventCategoryName: EventCategoryName,
+		}
+
+		if err := tx.Model(&EventCategory).Create(&EventCategory).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to create event category: " + err.Error(),
+			})
+		}
+	}
+
+	if len(childCategories) > 0 {
+		for _, tcReq := range childCategories {
+
+			childCategory := models.ChildEventCategory{
+				ChildEventCategoryID:   utils.GenerateChildEventCategoryID(),
+				ParentCategoryID:       EventCategory.EventCategoryID,
+				ChildEventCategoryName: tcReq.ChildEventCategoryName,
+			}
+
+			if err := tx.Model(&childCategory).Where("child_event_category_name = ?", tcReq.ChildEventCategoryName).First(&childCategory).Error; err != nil {
+				tx.Rollback()
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "Duplicate child event category: " + err.Error(),
+				})
+			}
+
+			if err := tx.Model(&childCategory).Create(&childCategory).Error; err != nil {
+				tx.Rollback()
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Failed to create child event category: " + err.Error(),
+				})
+			}
+
+		}
+
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to commit transaction: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Success create event categories",
+	})
+
+}
+
+// func DeleteCategoryEvent(c *fiber.Ctx) error {
+
+// } coming soon

@@ -93,6 +93,16 @@ func migrateDatabase(db *gorm.DB) error {
 		return err
 	}
 
+	err = db.AutoMigrate(&models.ChildEventCategory{})
+	if err != nil {
+		return err
+	}
+
+	err = db.AutoMigrate(&models.EventCategory{})
+	if err != nil {
+		return err
+	}
+
 	db.Exec("SET FOREIGN_KEY_CHECKS = 1")
 
 	log.Println("Database migrated successfully")

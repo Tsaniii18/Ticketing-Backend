@@ -57,3 +57,11 @@ func GenerateRandomEmail() string {
 func GenerateFeedID() string {
 	return GeneratePrefixedUUID("feed")
 }
+
+func GenerateEventCategoryID() string {
+	return GeneratePrefixedUUID("parend")
+}
+
+func GenerateChildEventCategoryID() string {
+	return GeneratePrefixedUUID("child")
+}

@@ -157,3 +157,16 @@ type Feedback struct {
 
 	User User `gorm:"foreignKey:OwnerID;reference:UserID" json:"user,omitempty"`
 }
+
+type EventCategory struct {
+	EventCategoryID   string `gorm:"primaryKey;type:char(60);not null" json:"event_category_id"`
+	EventCategoryName string `gorm:"size:20;default:active" json:"event_category_name"`
+
+	ChildEventCategory []ChildEventCategory `gorm:"foreignKey:ParentCategoryID;reference:EventCategoryID" json:"child_event_category,omitempty"`
+}
+
+type ChildEventCategory struct {
+	ChildEventCategoryID   string `gorm:"primaryKey;type:char(60);not null" json:"child_event_category_id"`
+	ParentCategoryID       string `gorm:"primaryKey;type:char(60);not null" json:"event_category_id"`
+	ChildEventCategoryName string `gorm:"size:20;default:active" json:"child_event_category_name"`
+}
