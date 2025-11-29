@@ -209,7 +209,7 @@ func CreateEvent(c *fiber.Ctx) error {
 		})
 	}
 
-	ScheduleEventEnd(config.DB, event)
+	// ScheduleEventEnd(config.DB, event)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Event created successfully",
@@ -549,6 +549,10 @@ func VerifyEvent(c *fiber.Ctx) error {
 		})
 	}
 
+	if event.Status == "approved" {
+		ScheduleEventEnd(config.DB, event)
+	}
+
 	return c.JSON(fiber.Map{
 		"message": "Event verification updated",
 		"event":   event,
@@ -886,7 +890,7 @@ func ScheduleEventEnd(db *gorm.DB, event models.Event) {
 
 	go func() {
 		if durationStart > 0 {
-			log.Println("Event start in " + durationStart.String())
+			log.Println("Event " + event.Name + " ---START in " + fmt.Sprintf("%.2f", durationStart.Hours()) + " hours")
 			time.Sleep(durationStart)
 		}
 
@@ -900,7 +904,7 @@ func ScheduleEventEnd(db *gorm.DB, event models.Event) {
 
 	go func() {
 		if durationEnd > 0 {
-			log.Println("Event end in " + durationEnd.String())
+			log.Println("Event " + event.Name + " ---END in " + fmt.Sprintf("%.2f", durationEnd.Hours()) + " hours")
 			time.Sleep(durationEnd)
 		}
 
@@ -921,7 +925,7 @@ func InitialScheduleEventEnd(db *gorm.DB) error {
 
 	var count uint = 0
 	for _, event := range events {
-		if event.Status == "approved" {
+		if event.Status == "approved" || event.Status == "active" {
 			ScheduleEventEnd(db, event)
 			count++
 		}
