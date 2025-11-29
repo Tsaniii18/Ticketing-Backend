@@ -1149,3 +1149,86 @@ func DeleteCategoryEvent(c *fiber.Ctx) error {
 	})
 
 }
+
+func InitializeDefaultCategories() error {
+	categories := map[string][]string{
+		"Hiburan":              {"Musik", "Konser", "Festival", "Stand Up Comedy", "Film", "Teater", "K-Pop", "Dance Performance"},
+		"Teknologi":            {"Konferensi Teknologi", "Workshop IT", "Startup", "Software Development", "Artificial Intelligence", "Data Science", "Cybersecurity", "Gaming & Esports"},
+		"Edukasi":              {"Seminar", "Workshop", "Pelatihan", "Webinar", "Bootcamp", "Kelas Online", "Literasi Digital", "Kelas Bisnis"},
+		"Olahraga":             {"Marathon", "Fun Run", "Sepak Bola", "Badminton", "Gym & Fitness", "Yoga", "Esport", "Cycling Event"},
+		"Bisnis & Profesional": {"Konferensi Bisnis", "Networking", "Karir", "Entrepreneurship", "Leadership", "Startup Meetup", "Investor & Pitching"},
+		"Seni & Budaya":        {"Pameran Seni", "Pentas Budaya", "Fotografi", "Seni Rupa", "Crafting", "Pameran Museum", "Fashion Show"},
+		"Komunitas":            {"Kegiatan Relawan", "Kegiatan Sosial", "Gathering Komunitas", "Komunitas Hobi", "Meetup", "Charity Event"},
+		"Kuliner":              {"Festival Kuliner", "Food Tasting", "Workshop Memasak", "Street Food Event"},
+		"Kesehatan":            {"Seminar Kesehatan", "Medical Check Event", "Workshop Kesehatan Mental", "Donor Darah"},
+		"Agama & Spiritual":    {"Kajian", "Retreat", "Pengajian", "Event Keagamaan", "Meditasi"},
+		"Travel & Outdoor":     {"Camping", "Hiking", "Trip Wisata", "Outdoor Gathering", "Photography Trip"},
+		"Keluarga & Anak":      {"Family Gathering", "Event Anak", "Workshop Parenting", "Pentas Anak"},
+		"Fashion & Beauty":     {"Fashion Expo", "Beauty Class", "Makeup Workshop", "Brand Launching"},
+	}
+
+	tx := config.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	for categoryName, subcategories := range categories {
+
+		var existingCategory models.EventCategory
+		err := tx.Where("event_category_name = ?", categoryName).First(&existingCategory).Error
+
+		var categoryID string
+
+		if err != nil {
+
+			categoryID = utils.GenerateEventCategoryID()
+			eventCategory := models.EventCategory{
+				EventCategoryID:   categoryID,
+				EventCategoryName: categoryName,
+			}
+
+			if err := tx.Create(&eventCategory).Error; err != nil {
+				tx.Rollback()
+				return fmt.Errorf("failed to create category %s: %w", categoryName, err)
+			}
+			log.Printf("Created main category: %s", categoryName)
+		} else {
+
+			categoryID = existingCategory.EventCategoryID
+			log.Printf("Category already exists: %s", categoryName)
+		}
+
+		for _, subcategoryName := range subcategories {
+
+			var existingSubcategory models.ChildEventCategory
+			err := tx.Where("child_event_category_name = ? AND parent_category_id = ?", subcategoryName, categoryID).First(&existingSubcategory).Error
+
+			if err != nil {
+
+				childEventCategory := models.ChildEventCategory{
+					ChildEventCategoryID:   utils.GenerateChildEventCategoryID(),
+					ParentCategoryID:       categoryID,
+					ParentCategoryName:     categoryName,
+					ChildEventCategoryName: subcategoryName,
+				}
+
+				if err := tx.Create(&childEventCategory).Error; err != nil {
+					tx.Rollback()
+					return fmt.Errorf("failed to create subcategory %s for category %s: %w", subcategoryName, categoryName, err)
+				}
+				log.Printf("Created subcategory: %s -> %s", categoryName, subcategoryName)
+			} else {
+				log.Printf("Subcategory already exists: %s -> %s", categoryName, subcategoryName)
+			}
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	log.Println("Successfully initialized all default categories and subcategories")
+	return nil
+}

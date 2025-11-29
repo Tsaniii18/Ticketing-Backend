@@ -27,18 +27,20 @@ func main() {
 
 	app := fiber.New()
 
-	// Middleware
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
 	app.Use(logger.New())
 
-	// Setup routes
 	routes.SetupRoutes(app)
 
 	if err := handlers.DefaultAdminSetup(); err != nil {
 		log.Fatal("Failed to setup default admin:", err)
+	}
+
+	if err := handlers.InitializeDefaultCategories(); err != nil {
+		log.Fatal("Failed to setup default category event:", err)
 	}
 
 	log.Println("Server running on port 3000")
