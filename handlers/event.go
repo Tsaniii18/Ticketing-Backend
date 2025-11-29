@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -809,14 +810,13 @@ func AddLike(c *fiber.Ctx) error {
 
 	var existingLike models.EventLike
 	if err := config.DB.Where("user_id = ? AND event_id = ?", user.UserID, eventID).First(&existingLike).Error; err == nil {
-		// Unlike - hapus like yang ada
+
 		if err := config.DB.Delete(&existingLike).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Failed to unlike event: " + err.Error(),
 			})
 		}
 
-		// Kurangi total likes
 		if event.TotalLikes > 0 {
 			event.TotalLikes--
 		}
@@ -827,7 +827,6 @@ func AddLike(c *fiber.Ctx) error {
 			})
 		}
 
-		// PERBAIKAN: Gunakan StatusOK (200) bukan StatusContinue (100)
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"message":          "Unliked",
 			"action":           "unlike",
@@ -835,7 +834,6 @@ func AddLike(c *fiber.Ctx) error {
 		})
 	}
 
-	// Like - tambah like baru
 	eventLike := models.EventLike{
 		UserID:  user.UserID,
 		EventID: eventID,
@@ -897,8 +895,6 @@ func ScheduleEventEnd(db *gorm.DB, event models.Event) {
 			Update("status", "active").Error; err != nil {
 
 			log.Println("Failed to update event start:", err)
-		} else {
-			log.Println("Event " + event.EventID + " started.")
 		}
 	}()
 
@@ -913,10 +909,26 @@ func ScheduleEventEnd(db *gorm.DB, event models.Event) {
 			Update("status", "ended").Error; err != nil {
 
 			log.Println("Failed to update event end:", err)
-		} else {
-			log.Println("Event " + event.EventID + " ended.")
 		}
 	}()
+}
+
+func InitialScheduleEventEnd(db *gorm.DB) error {
+	var events []models.Event
+	if err := db.Model(&models.Event{}).Find(&events).Error; err != nil {
+		return err
+	}
+
+	var count uint = 0
+	for _, event := range events {
+		if event.Status == "approved" {
+			ScheduleEventEnd(db, event)
+			count++
+		}
+
+	}
+	log.Println(" --  Start Goroutine for " + strconv.Itoa(int(count)) + " events")
+	return nil
 }
 
 func GetEventCategories(c *fiber.Ctx) error {
@@ -1155,7 +1167,7 @@ func InitializeDefaultCategories() error {
 		"Hiburan":              {"Musik", "Konser", "Festival", "Stand Up Comedy", "Film", "Teater", "K-Pop", "Dance Performance"},
 		"Teknologi":            {"Konferensi Teknologi", "Workshop IT", "Startup", "Software Development", "Artificial Intelligence", "Data Science", "Cybersecurity", "Gaming & Esports"},
 		"Edukasi":              {"Seminar", "Workshop", "Pelatihan", "Webinar", "Bootcamp", "Kelas Online", "Literasi Digital", "Kelas Bisnis"},
-		"Olahraga":             {"Marathon", "Fun Run", "Sepak Bola", "Badminton", "Gym & Fitness", "Yoga", "Esport", "Cycling Event"},
+		"Olahraga":             {"Marathon", "Fun Run", "Sepak Bola", "Badminton", "Gym & Fitness", "Yoga", "Esport", "Cycling Event", "Horse Race"},
 		"Bisnis & Profesional": {"Konferensi Bisnis", "Networking", "Karir", "Entrepreneurship", "Leadership", "Startup Meetup", "Investor & Pitching"},
 		"Seni & Budaya":        {"Pameran Seni", "Pentas Budaya", "Fotografi", "Seni Rupa", "Crafting", "Pameran Museum", "Fashion Show"},
 		"Komunitas":            {"Kegiatan Relawan", "Kegiatan Sosial", "Gathering Komunitas", "Komunitas Hobi", "Meetup", "Charity Event"},
@@ -1165,6 +1177,16 @@ func InitializeDefaultCategories() error {
 		"Travel & Outdoor":     {"Camping", "Hiking", "Trip Wisata", "Outdoor Gathering", "Photography Trip"},
 		"Keluarga & Anak":      {"Family Gathering", "Event Anak", "Workshop Parenting", "Pentas Anak"},
 		"Fashion & Beauty":     {"Fashion Expo", "Beauty Class", "Makeup Workshop", "Brand Launching"},
+	}
+
+	var count int64
+	if err := config.DB.Model(&models.EventCategory{}).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check existing categories: %w", err)
+	}
+
+	if count > 0 {
+		log.Println("Default event categories already exist")
+		return nil
 	}
 
 	tx := config.DB.Begin()

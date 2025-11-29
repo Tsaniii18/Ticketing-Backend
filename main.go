@@ -43,6 +43,10 @@ func main() {
 		log.Fatal("Failed to setup default category event:", err)
 	}
 
+	if err := handlers.InitialScheduleEventEnd(config.DB); err != nil {
+		log.Fatal("Failed to start event_auto_status goroutine:", err)
+	}
+
 	log.Println("Server running on port 3000")
 	log.Fatal(app.Listen(":3000"))
 }
