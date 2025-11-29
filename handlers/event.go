@@ -559,7 +559,7 @@ func DeleteEvent(c *fiber.Ctx) error {
 	eventID := c.Params("id")
 
 	var event models.Event
-	if err := config.DB.First(&event, eventID).Error; err != nil {
+	if err := config.DB.First(&event, "event_id", eventID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Event not found",
 		})
@@ -919,7 +919,7 @@ func ScheduleEventEnd(db *gorm.DB, event models.Event) {
 	}()
 }
 
-func GetEventCategory(c *fiber.Ctx) error {
+func GetEventCategories(c *fiber.Ctx) error {
 
 	var allCategory []models.EventCategory
 	if err := config.DB.Model(&allCategory).Preload("ChildEventCategory").Find(&allCategory).Error; err != nil {
@@ -939,6 +939,86 @@ type ChildEventCategoryRequest struct {
 }
 
 func AddEventCategory(c *fiber.Ctx) error {
+	var nameReq map[string]interface{}
+
+	if err := c.BodyParser(&nameReq); err != nil {
+		log.Printf("Error parsing : %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	categoryName, _ := nameReq["category_event"].(string)
+
+	if categoryName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Input is Empty : ",
+		})
+	}
+
+	eventCategory := models.EventCategory{
+		EventCategoryID:   utils.GenerateEventCategoryID(),
+		EventCategoryName: categoryName,
+	}
+
+	if err := config.DB.Model(&models.EventCategory{}).Create(&eventCategory).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to add event category",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Success create event categories: s" + categoryName,
+	})
+
+}
+
+func AddSubEventCategory(c *fiber.Ctx) error {
+	var nameReq map[string]interface{}
+
+	if err := c.BodyParser(&nameReq); err != nil {
+		log.Printf("Error parsing : %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	categoryName, _ := nameReq["child_category_event"].(string)
+	parentCategoryName, _ := nameReq["category_event"].(string)
+
+	if categoryName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Input is Empty  ",
+		})
+	}
+
+	if parentCategoryName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Input is Empty  ",
+		})
+	}
+	var checkParent models.EventCategory
+	if err := config.DB.Model(&models.EventCategory{}).Where("event_category_name = ?", parentCategoryName).First(&checkParent).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "main category not found",
+		})
+
+	}
+
+	eventSubCategory := models.ChildEventCategory{
+		ChildEventCategoryID:   utils.GenerateChildEventCategoryID(),
+		ParentCategoryID:       checkParent.EventCategoryID,
+		ChildEventCategoryName: categoryName,
+		ParentCategoryName:     parentCategoryName,
+	}
+
+	if err := config.DB.Model(&models.ChildEventCategory{}).Create(&eventSubCategory).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to add event category",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Success create event categories: " + categoryName,
+	})
+
+}
+
+func AddEventCategoryAll(c *fiber.Ctx) error {
 	childCategoryName := c.FormValue("child_categories")
 	EventCategoryName := c.FormValue("event_category")
 
@@ -961,12 +1041,12 @@ func AddEventCategory(c *fiber.Ctx) error {
 	var EventCategory models.EventCategory
 	if err := config.DB.Model(&models.EventCategory{}).Where(&EventCategory, "event_category_name = ?", EventCategoryName).Error; err != nil {
 
-		EventCategory := models.EventCategory{
+		eventCategory := models.EventCategory{
 			EventCategoryID:   utils.GenerateEventCategoryID(),
 			EventCategoryName: EventCategoryName,
 		}
 
-		if err := tx.Model(&EventCategory).Create(&EventCategory).Error; err != nil {
+		if err := tx.Model(&eventCategory).Create(&eventCategory).Error; err != nil {
 			tx.Rollback()
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Failed to create event category: " + err.Error(),
@@ -1014,6 +1094,58 @@ func AddEventCategory(c *fiber.Ctx) error {
 
 }
 
-// func DeleteCategoryEvent(c *fiber.Ctx) error {
+func DeleteSubCategoryEvent(c *fiber.Ctx) error {
+	var deleteReq map[string]interface{}
 
-// } coming soon
+	if err := c.BodyParser(&deleteReq); err != nil {
+		log.Printf("Error parsing : %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	deleteName, _ := deleteReq["child_category_event"].(string)
+
+	if err := config.DB.Model(&models.ChildEventCategory{}).Delete(&models.ChildEventCategory{}, "child_event_category_name = ?", deleteName).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete category: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Success delete event categories",
+	})
+
+}
+
+func DeleteCategoryEvent(c *fiber.Ctx) error {
+	var deleteReq map[string]interface{}
+
+	if err := c.BodyParser(&deleteReq); err != nil {
+		log.Printf("Error parsing : %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	deleteName, _ := deleteReq["category_event"].(string)
+
+	var categoryNameDelete models.EventCategory
+	if err := config.DB.Model(&categoryNameDelete).Preload("ChildEventCategory").Where("event_category_name = ?", deleteName).Find(&categoryNameDelete).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Category event not found",
+		})
+	}
+
+	if len(categoryNameDelete.ChildEventCategory) > 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "You have to delete the child categories first ",
+		})
+	}
+
+	if err := config.DB.Model(&models.EventCategory{}).Delete(&categoryNameDelete, "event_category_id = ?", categoryNameDelete.EventCategoryID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete category: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Success delete event categories",
+		"Deleted": categoryNameDelete.EventCategoryName,
+	})
+
+}

@@ -29,6 +29,7 @@ func SetupRoutes(app *fiber.App) {
 	app.Get("/api/events", handlers.GetApprovedEvents)
 	app.Get("/api/event/:id", handlers.GetEvent)
 	app.Get("/api/events/popular", handlers.GetEventsPopular)
+	app.Get("/api/events/category", handlers.GetEventCategories)
 	event := app.Group("/api/events", middleware.AuthMiddleware)
 	event.Get("/all", handlers.GetEvents)
 	event.Get("/my-events", handlers.GetMyEvents)
@@ -40,6 +41,11 @@ func SetupRoutes(app *fiber.App) {
 	event.Patch("/:id/verify", middleware.AdminMiddleware, handlers.VerifyEvent)
 	event.Post("/:id/like", handlers.AddLike)
 	event.Get("/like", handlers.MyLikedEvent)
+	event.Post("/category/", middleware.AdminMiddleware, handlers.AddEventCategoryAll)
+	event.Post("/category/new", middleware.AdminMiddleware, handlers.AddEventCategory)
+	event.Post("/category/new/sub", middleware.AdminMiddleware, handlers.AddSubEventCategory)
+	event.Delete("/category/delete", middleware.AdminMiddleware, handlers.DeleteCategoryEvent)
+	event.Delete("/category/delete/sub", middleware.AdminMiddleware, handlers.DeleteSubCategoryEvent)
 
 	// Ticket routes
 	ticket := app.Group("/api/tickets", middleware.AuthMiddleware)
