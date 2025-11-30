@@ -364,6 +364,8 @@ func UpdateEvent(c *fiber.Ctx) error {
 		}
 	}
 
+	updateData["status"] = "pending"
+
 	// Update event
 	if err := tx.Model(&event).Updates(updateData).Error; err != nil {
 		tx.Rollback()
