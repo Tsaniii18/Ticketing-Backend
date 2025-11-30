@@ -149,7 +149,7 @@ type EventLike struct {
 type Feedback struct {
 	FeedbackID       string `gorm:"primaryKey;type:char(60);not null" json:"feedback_id"`
 	OwnerID          string `gorm:"column:owner_id;type:char(60);not null" json:"owner_id"`
-	FeedbackCategory string `gorm:"type:char(15);not null" json:"feedback_category"`
+	FeedbackCategory string `gorm:"type:char(40);not null" json:"feedback_category"`
 	Status           string `gorm:"size:20;default:active" json:"status"`
 	Comment          string `gorm:"type:text" json:"comment"`
 	Image            string `gorm:"size:255" json:"image"`
@@ -160,7 +160,7 @@ type Feedback struct {
 
 type EventCategory struct {
 	EventCategoryID   string `gorm:"primaryKey;type:char(60);not null" json:"event_category_id"`
-	EventCategoryName string `gorm:"size:20;default:active" json:"event_category_name"`
+	EventCategoryName string `gorm:"size:50;default:active" json:"event_category_name"`
 
 	ChildEventCategory []ChildEventCategory `gorm:"foreignKey:ParentCategoryID;reference:EventCategoryID" json:"child_event_category,omitempty"`
 }
