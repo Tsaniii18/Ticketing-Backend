@@ -1,0 +1,11 @@
+.env
+*.env
+.git
+.gitignore
+logs/
+tmp/
+*.log
+Dockerfile
+README.md
+vendor/
+node_modules/
