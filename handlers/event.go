@@ -596,7 +596,7 @@ func GetEventsPopular(c *fiber.Ctx) error {
 	if err := config.DB.Preload("Owner").Preload("TicketCategories").
 		Where("status = ?", "approved").
 		Order("total_likes DESC").
-		Limit(4).
+		Limit(6).
 		Find(&events).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch events",
