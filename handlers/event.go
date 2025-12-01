@@ -617,11 +617,15 @@ type EventReportResponse struct {
 	TotalTicketsSold int                   `json:"total_tickets_sold"`
 	TotalCheckins    int                   `json:"total_checkins"`
 	TotalLikes       uint                  `json:"total_likes"`
+	TotalQuota       int                   `json:"total_quota"`
 }
 
 type TicketCategoryStats struct {
-	Name  string `json:"name"`
-	Value int    `json:"value"`
+	Name       string  `json:"name"`
+	Value      int     `json:"value"`
+	Quota      int     `json:"quota"`
+	Price      float64 `json:"price"`
+	Percentage float64 `json:"percentage"`
 }
 
 func GetEventReport(c *fiber.Ctx) error {
@@ -644,74 +648,114 @@ func GetEventReport(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get ticket sales data per category
+	// Initialize data arrays
 	var purchaseData []TicketCategoryStats
 	var checkinData []TicketCategoryStats
 	var attendantData []TicketCategoryStats
 
-	// Calculate total sold and checked-in tickets for the entire event
-	var totalSold int
-	var totalCheckedIn int
+	// Calculate totals
+	var totalSold int64 = 0
+	var totalCheckedIn int64 = 0
+	var totalQuota int = 0
+	var totalIncome float64 = 0
 
-	// Calculate purchase data and income per category
+	// Calculate data per category
 	for _, ticketCategory := range event.TicketCategories {
 		var soldCount int64
 		var checkedInCount int64
 
-		// Count sold tickets for this category (status = active)
+		// Count sold tickets - include both active and used status
 		config.DB.Model(&models.Ticket{}).
 			Where("ticket_category_id = ? AND status IN (?, ?)", ticketCategory.TicketCategoryID, "active", "used").
 			Count(&soldCount)
 
-		// Count checked-in tickets for this category
+		// Count checked-in tickets (status = used)
 		config.DB.Model(&models.Ticket{}).
 			Where("ticket_category_id = ? AND status = ?", ticketCategory.TicketCategoryID, "used").
 			Count(&checkedInCount)
 
+		// Gunakan nilai yang lebih besar antara query dan field Sold untuk konsistensi
+		if int64(ticketCategory.Sold) > soldCount {
+			soldCount = int64(ticketCategory.Sold)
+		}
+
+		// Gunakan nilai yang lebih besar antara query dan field Attendant
+		if int64(ticketCategory.Attendant) > checkedInCount {
+			checkedInCount = int64(ticketCategory.Attendant)
+		}
+
+		// Calculate percentage of sold tickets for this category
+		soldPercentage := float64(0)
+		if ticketCategory.Quota > 0 {
+			soldPercentage = (float64(soldCount) / float64(ticketCategory.Quota)) * 100
+		}
+
+		// Calculate percentage of check-ins for this category
+		checkinPercentage := float64(0)
+		if soldCount > 0 {
+			checkinPercentage = (float64(checkedInCount) / float64(soldCount)) * 100
+		}
+
 		purchaseData = append(purchaseData, TicketCategoryStats{
-			Name:  ticketCategory.Name,
-			Value: int(soldCount),
+			Name:       ticketCategory.Name,
+			Value:      int(soldCount),
+			Quota:      int(ticketCategory.Quota),
+			Price:      ticketCategory.Price,
+			Percentage: soldPercentage,
 		})
 
 		checkinData = append(checkinData, TicketCategoryStats{
-			Name:  ticketCategory.Name,
-			Value: int(checkedInCount),
+			Name:       ticketCategory.Name,
+			Value:      int(checkedInCount),
+			Quota:      int(soldCount), 
+			Price:      ticketCategory.Price,
+			Percentage: checkinPercentage,
 		})
 
 		attendantData = append(attendantData, TicketCategoryStats{
-			Name:  ticketCategory.Name,
-			Value: int(ticketCategory.Attendant),
+			Name:       ticketCategory.Name,
+			Value:      int(ticketCategory.Attendant),
+			Quota:      int(ticketCategory.Quota),
+			Price:      ticketCategory.Price,
+			Percentage: checkinPercentage,
 		})
 
-		totalSold += int(soldCount)
-		totalCheckedIn += int(checkedInCount)
+		totalSold += soldCount
+		totalCheckedIn += checkedInCount
+		totalQuota += int(ticketCategory.Quota)
+		totalIncome += float64(soldCount) * ticketCategory.Price
 	}
 
-	// Calculate additional metrics
+	// Gunakan nilai dari event jika lebih besar (untuk konsistensi)
+	if int64(event.TotalTicketsSold) > totalSold {
+		totalSold = int64(event.TotalTicketsSold)
+	}
+	if int64(event.TotalAttendant) > totalCheckedIn {
+		totalCheckedIn = int64(event.TotalAttendant)
+	}
+	if event.TotalSales > totalIncome {
+		totalIncome = event.TotalSales
+	}
+
+	// Calculate overall metrics
 	soldPercentage := "0%"
-	if event.TotalTicketsSold > 0 && len(event.TicketCategories) > 0 {
-		// Calculate based on total quota
-		totalQuota := uint(0)
-		for _, tc := range event.TicketCategories {
-			totalQuota += tc.Quota
-		}
-		if totalQuota > 0 {
-			percentage := (float64(event.TotalTicketsSold) / float64(totalQuota)) * 100
-			soldPercentage = fmt.Sprintf("%.1f%%", percentage)
-		}
+	if totalQuota > 0 {
+		percentage := (float64(totalSold) / float64(totalQuota)) * 100
+		soldPercentage = fmt.Sprintf("%.1f%%", percentage)
 	}
 
 	attendanceRate := "0%"
-	if event.TotalTicketsSold > 0 {
-		rate := (float64(event.TotalAttendant) / float64(event.TotalTicketsSold)) * 100
+	if totalSold > 0 {
+		rate := (float64(totalCheckedIn) / float64(totalSold)) * 100
 		attendanceRate = fmt.Sprintf("%.1f%%", rate)
 	}
 
-	// Create metrics
+	// Create metrics map
 	metrics := fiber.Map{
-		"total_attendant":    event.TotalAttendant,
-		"total_tickets_sold": event.TotalTicketsSold,
-		"total_sales":        event.TotalSales,
+		"total_attendant":    totalCheckedIn,
+		"total_tickets_sold": totalSold,
+		"total_sales":        totalIncome,
+		"total_quota":        totalQuota,
 		"sold_percentage":    soldPercentage,
 		"attendance_rate":    attendanceRate,
 	}
@@ -721,10 +765,11 @@ func GetEventReport(c *fiber.Ctx) error {
 		PurchaseData:     purchaseData,
 		CheckinData:      checkinData,
 		AttendantData:    attendantData,
-		TotalIncome:      event.TotalSales,
+		TotalIncome:      totalIncome,
 		TotalLikes:       event.TotalLikes,
-		TotalTicketsSold: int(event.TotalTicketsSold),
-		TotalCheckins:    int(event.TotalAttendant),
+		TotalTicketsSold: int(totalSold),
+		TotalCheckins:    int(totalCheckedIn),
+		TotalQuota:       totalQuota,
 	}
 
 	return c.JSON(fiber.Map{
@@ -754,42 +799,94 @@ func DownloadEventReport(c *fiber.Ctx) error {
 	}
 
 	// Generate CSV report
-	csvData := "Kategori_Tiket,Tiket_Terjual,Persentase_Tiket_Terjual,Tiket_Check_in,Persentase_Tiket_Check_in,Kuota_Ticket,Pendapatan_Kategori\n"
+	csvData := "Kategori_Tiket,Harga_Tiket,Kuota_Tiket,Tiket_Terjual,Persentase_Terjual,Tiket_Check_in,Persentase_Check_in,Pendapatan_Kategori\n"
 
-	// Hitung data per kategori
+	var grandTotalSold int64 = 0
+	var grandTotalCheckedIn int64 = 0
+	var grandTotalQuota int64 = 0
+	var grandTotalIncome float64 = 0
+
+	// Calculate data per category
 	for _, ticketCategory := range event.TicketCategories {
 		var soldCount int64
 		var checkedInCount int64
 
+		// Count sold tickets - include both active and used status (konsisten dengan GetEventReport)
 		config.DB.Model(&models.Ticket{}).
-			Where("ticket_category_id = ? AND status = ?", ticketCategory.TicketCategoryID, "active").
+			Where("ticket_category_id = ? AND status IN (?, ?)", ticketCategory.TicketCategoryID, "active", "used").
 			Count(&soldCount)
 
+		// Count checked-in tickets
 		config.DB.Model(&models.Ticket{}).
 			Where("ticket_category_id = ? AND status = ?", ticketCategory.TicketCategoryID, "used").
 			Count(&checkedInCount)
 
-		checkInPercentage := float64(checkedInCount) / float64(soldCount) * 100
-		soldPercentage := float64(soldCount) / float64(ticketCategory.Quota) * 100
+		// Gunakan nilai yang lebih besar untuk konsistensi
+		if int64(ticketCategory.Sold) > soldCount {
+			soldCount = int64(ticketCategory.Sold)
+		}
+		if int64(ticketCategory.Attendant) > checkedInCount {
+			checkedInCount = int64(ticketCategory.Attendant)
+		}
+
+		// Handle division by zero
+		soldPercentage := float64(0)
+		if ticketCategory.Quota > 0 {
+			soldPercentage = (float64(soldCount) / float64(ticketCategory.Quota)) * 100
+		}
+
+		checkInPercentage := float64(0)
+		if soldCount > 0 {
+			checkInPercentage = (float64(checkedInCount) / float64(soldCount)) * 100
+		}
 
 		categoryIncome := float64(soldCount) * ticketCategory.Price
 
-		csvData += fmt.Sprintf("%s,%d,%.2f%%,%d,%.2f%%,%d,%.2f\n",
-			ticketCategory.Name, soldCount, soldPercentage, checkedInCount, checkInPercentage, ticketCategory.Quota, categoryIncome)
+		csvData += fmt.Sprintf("%s,%.0f,%d,%d,%.2f%%,%d,%.2f%%,%.0f\n",
+			ticketCategory.Name,
+			ticketCategory.Price,
+			ticketCategory.Quota,
+			soldCount,
+			soldPercentage,
+			checkedInCount,
+			checkInPercentage,
+			categoryIncome)
+
+		grandTotalSold += soldCount
+		grandTotalCheckedIn += checkedInCount
+		grandTotalQuota += int64(ticketCategory.Quota)
+		grandTotalIncome += categoryIncome
 	}
 
-	// Tambahkan total keseluruhan
-	csvData += fmt.Sprintf("\nTotal Keseluruhan event %s\n", event.Name)
-	csvData += fmt.Sprintf("Total Tiket Terjual:,%d\n", event.TotalTicketsSold)
-	csvData += fmt.Sprintf("Total Check-in:,%d\n", event.TotalAttendant)
-	csvData += fmt.Sprintf("Total Pendapatan:,%f\n", event.TotalSales)
+	// Calculate overall percentages
+	overallSoldPercentage := float64(0)
+	if grandTotalQuota > 0 {
+		overallSoldPercentage = (float64(grandTotalSold) / float64(grandTotalQuota)) * 100
+	}
+
+	overallCheckInPercentage := float64(0)
+	if grandTotalSold > 0 {
+		overallCheckInPercentage = (float64(grandTotalCheckedIn) / float64(grandTotalSold)) * 100
+	}
+
+	// Add summary section
+	csvData += "\n"
+	csvData += fmt.Sprintf("RINGKASAN LAPORAN EVENT: %s\n", event.Name)
+	csvData += fmt.Sprintf("Tanggal Event:,%s - %s\n", event.DateStart.Format("02-01-2006"), event.DateEnd.Format("02-01-2006"))
+	csvData += fmt.Sprintf("Lokasi:,%s - %s\n", event.Venue, event.Location)
+	csvData += "\n"
+	csvData += fmt.Sprintf("Total Kuota Tiket:,%d\n", grandTotalQuota)
+	csvData += fmt.Sprintf("Total Tiket Terjual:,%d (%.2f%%)\n", grandTotalSold, overallSoldPercentage)
+	csvData += fmt.Sprintf("Total Check-in:,%d (%.2f%%)\n", grandTotalCheckedIn, overallCheckInPercentage)
+	csvData += fmt.Sprintf("Total Pendapatan:,Rp %.0f\n", grandTotalIncome)
 	csvData += fmt.Sprintf("Total Like:,%d\n", event.TotalLikes)
 
-	c.Set("Content-Type", "text/csv")
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=report_%s.csv", event.Name))
+	c.Set("Content-Type", "text/csv; charset=utf-8")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=laporan_%s_%s.csv", event.Name, time.Now().Format("2006-01-02")))
 
 	return c.SendString(csvData)
 }
+
 
 func AddLike(c *fiber.Ctx) error {
 	eventID := c.Params("id")
