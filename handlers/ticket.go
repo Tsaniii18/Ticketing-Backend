@@ -154,11 +154,37 @@ func CheckInTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	// Fetch event data early for validation
+	var event models.Event
+	if err := tx.First(&event, "event_id = ?", ticket.EventID).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch event data",
+		})
+	}
+
+	// Fetch ticket category for response
+	var ticketCategory models.TicketCategory
+	tx.First(&ticketCategory, "ticket_category_id = ?", ticket.TicketCategoryID)
+
 	if ticket.Status == "used" {
 		tx.Rollback()
 		return c.Status(fiber.StatusNotAcceptable).JSON(fiber.Map{
-			"error":  "Ticket already used",
-			"status": "already_used",
+			"error":   "Ticket already used",
+			"status":  "already_used",
+			"used_at": ticket.UpdatedAt,
+			"ticket": fiber.Map{
+				"ticket_id":        ticket.TicketID,
+				"status":           ticket.Status,
+				"used_at":          ticket.UpdatedAt,
+				"ticket_category":  ticketCategory.Name,
+				"event_name":       event.Name,
+				"event_date_start": event.DateStart,
+				"event_date_end":   event.DateEnd,
+				"event_venue":      event.Venue,
+				"event_location":   event.Location,
+				"event_district":   event.District,
+			},
 		})
 	}
 
@@ -178,16 +204,44 @@ func CheckInTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check if event has not started yet
+	if event.DateStart.After(time.Now()) {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotAcceptable).JSON(fiber.Map{
+			"error":  "Event has not started yet",
+			"status": "not_started",
+			"ticket": fiber.Map{
+				"ticket_id":        ticket.TicketID,
+				"status":           "not_started",
+				"ticket_category":  ticketCategory.Name,
+				"event_name":       event.Name,
+				"event_date_start": event.DateStart,
+				"event_date_end":   event.DateEnd,
+				"event_venue":      event.Venue,
+				"event_location":   event.Location,
+				"event_district":   event.District,
+			},
+		})
+	}
+
 	// Check if event has expired
-	var event models.Event
-	if err := tx.First(&event, "event_id = ?", ticket.EventID).Error; err == nil {
-		if event.DateEnd.Before(time.Now()) {
-			tx.Rollback()
-			return c.Status(fiber.StatusNotAcceptable).JSON(fiber.Map{
-				"error":  "Event has ended",
-				"status": "expired",
-			})
-		}
+	if event.DateEnd.Before(time.Now()) {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotAcceptable).JSON(fiber.Map{
+			"error":  "Event has ended",
+			"status": "expired",
+			"ticket": fiber.Map{
+				"ticket_id":        ticket.TicketID,
+				"status":           "expired",
+				"ticket_category":  ticketCategory.Name,
+				"event_name":       event.Name,
+				"event_date_start": event.DateStart,
+				"event_date_end":   event.DateEnd,
+				"event_venue":      event.Venue,
+				"event_location":   event.Location,
+				"event_district":   event.District,
+			},
+		})
 	}
 
 	ticket.Status = "used"
@@ -220,22 +274,23 @@ func CheckInTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Fetch ticket category and event for response
-	var ticketCategory models.TicketCategory
-	config.DB.First(&ticketCategory, "ticket_category_id = ?", ticket.TicketCategoryID)
-
 	return c.JSON(fiber.Map{
 		"message": "Ticket checked in successfully",
 		"status":  "success",
 		"ticket": fiber.Map{
-			"ticket_id":       ticket.TicketID,
-			"code":            ticket.Code,
-			"status":          ticket.Status,
-			"checked_in_at":   ticket.UpdatedAt,
-			"ticket_category": ticketCategory.Name,
-			"date_start":      ticketCategory.DateTimeStart,
-			"date_end":        ticketCategory.DateTimeEnd,
-			"event_name":      event.Name,
+			"ticket_id":              ticket.TicketID,
+			"code":                   ticket.Code,
+			"status":                 ticket.Status,
+			"checked_in_at":          ticket.UpdatedAt,
+			"ticket_category":        ticketCategory.Name,
+			"ticket_category_start":  ticketCategory.DateTimeStart,
+			"ticket_category_end":    ticketCategory.DateTimeEnd,
+			"event_name":             event.Name,
+			"event_date_start":       event.DateStart,
+			"event_date_end":         event.DateEnd,
+			"event_venue":            event.Venue,
+			"event_location":         event.Location,
+			"event_district":         event.District,
 		},
 	})
 }
