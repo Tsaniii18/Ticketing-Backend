@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/Tsaniii18/Ticketing-Backend/config"
 	"github.com/Tsaniii18/Ticketing-Backend/handlers"
@@ -47,8 +48,13 @@ func main() {
 		log.Fatal("Failed to start event_auto_status goroutine:", err)
 	}
 
-	log.Println("Server running on port 3000")
-	log.Fatal(app.Listen(":3000"))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = ":3000" // default untuk local & Docker
+	}
+
+	log.Println("Server running on port ", port)
+	log.Fatal(app.Listen(port))
 }
 
 func migrateDatabase(db *gorm.DB) error {

@@ -1,0 +1,47 @@
+steps:
+  # Step 1 — Build Docker
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/tikeria-backend:$COMMIT_SHA"
+      - "."
+    id: "build"
+
+  # Step 2 — Push Docker
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/tikeria-backend:$COMMIT_SHA"
+    id: "push"
+
+  # Step 3 — Deploy to Cloud Run 
+  - name: "gcr.io/cloud-builders/gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "tikeria-backend"
+      - "--image=gcr.io/$PROJECT_ID/tikeria-backend:$COMMIT_SHA"
+      - "--region=asia-southeast1"
+      - "--platform=managed"
+      - "--timeout=1000s"
+      - "--allow-unauthenticated"
+      - "--set-env-vars=DB_USER=$_DB_USER,DB_PASS=$_DB_PASS,DB_HOST=$_DB_HOST,DB_PORT=$_DB_PORT,DB_NAME=$_DB_NAME,JWT_SEED=$_JWT_SEED,CLOUDINARY_CLOUD_NAME=$_CLOUDINARY_CLOUD_NAME,CLOUDINARY_API_KEY=$_CLOUDINARY_API_KEY,CLOUDINARY_API_SECRET=$_CLOUDINARY_API_SECRET,MIDTRANS_SERVER_KEY=$_MIDTRANS_SERVER_KEY,MIDTRANS_CLIENT_KEY=$_MIDTRANS_CLIENT_KEY,DEFAULT_ADMIN_USERNAME=$_DEFAULT_ADMIN_USERNAME,DEFAULT_ADMIN_EMAIL=$_DEFAULT_ADMIN_EMAIL,DEFAULT_ADMIN_PASS=$_DEFAULT_ADMIN_PASS,DEFAULT_ADMIN_NAME=$_DEFAULT_ADMIN_NAME,PORT=:8080"
+    id: "deploy"
+
+  # Step 4 — Cleanup unused commit images
+  - name: "gcr.io/cloud-builders/gcloud"
+    args:
+      - "container"
+      - "images"
+      - "delete"
+      - "gcr.io/$PROJECT_ID/tikeria-backend:$COMMIT_SHA"
+      - "--force-delete-tags"
+      - "--quiet"
+    id: "cleanup"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - "gcr.io/$PROJECT_ID/tikeria-backend:$COMMIT_SHA"
